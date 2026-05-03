@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Cuentas - L'Atelier</title>
+    <title>Control de cuentas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- Scripts de Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDP4o3pzYG_OpZNqi3o96sUkw2AwkIUOMU",
@@ -218,7 +218,7 @@
 <body class="bg-[#f2f2f7] p-4 md:p-8 font-sans">
 
     <header class="container mx-auto flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
-        <h1 class="text-4xl font-black text-gray-900 tracking-tight">Cuentas L'Atelier</h1>
+        <h1 class="text-4xl font-black text-gray-900 tracking-tight">Control de cuentas</h1>
         <div class="bg-white px-8 py-4 rounded-3xl shadow-sm border border-gray-200">
             <span id="gran-total" class="text-3xl font-black text-gray-800">Total 0 gs</span>
         </div>
