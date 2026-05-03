@@ -51,13 +51,20 @@
         let tipoExtractoActivo = null;
         let editandoIndex = null;
 
+        // NUEVA LISTA DE COLORES PASTELES
         const opcionesColores = [
-            { fondo: 'bg-emerald-100', numero: 'bg-emerald-200/50', nombre: 'Esmeralda' },
-            { fondo: 'bg-blue-100', numero: 'bg-blue-200/50', nombre: 'Azul' },
-            { fondo: 'bg-purple-100', numero: 'bg-purple-200/50', nombre: 'Púrpura' },
-            { fondo: 'bg-rose-100', numero: 'bg-rose-200/50', nombre: 'Rosa' },
-            { fondo: 'bg-amber-100', numero: 'bg-amber-200/50', nombre: 'Ámbar' },
-            { fondo: 'bg-slate-200', numero: 'bg-slate-300/50', nombre: 'Gris' }
+            { fondo: 'bg-[#E7F5E9]', numero: 'bg-[#C8E6C9]/40', nombre: 'Menta' },
+            { fondo: 'bg-[#E3F2FD]', numero: 'bg-[#BBDEFB]/40', nombre: 'Cielo' },
+            { fondo: 'bg-[#F3E5F5]', numero: 'bg-[#E1BEE7]/40', nombre: 'Lavanda' },
+            { fondo: 'bg-[#FFF3E0]', numero: 'bg-[#FFE0B2]/40', nombre: 'Crema' },
+            { fondo: 'bg-[#FCE4EC]', numero: 'bg-[#F8BBD0]/40', nombre: 'Rosa' },
+            { fondo: 'bg-[#E0F2F1]', numero: 'bg-[#B2DFDB]/40', nombre: 'Turquesa' },
+            { fondo: 'bg-[#FFFDE7]', numero: 'bg-[#FFF9C4]/40', nombre: 'Vainilla' },
+            { fondo: 'bg-[#F1F8E9]', numero: 'bg-[#DCEDC8]/40', nombre: 'Lima' },
+            { fondo: 'bg-[#EFEBE9]', numero: 'bg-[#D7CCC8]/40', nombre: 'Arena' },
+            { fondo: 'bg-[#F5F5F5]', numero: 'bg-[#E0E0E0]/40', nombre: 'Nube' },
+            { fondo: 'bg-[#E8EAF6]', numero: 'bg-[#C5CAE9]/40', nombre: 'Indigo' },
+            { fondo: 'bg-[#E0F7FA]', numero: 'bg-[#B2EBF2]/40', nombre: 'Cian' }
         ];
 
         function formatNumber(num) {
@@ -93,32 +100,32 @@
                 granTotalContinental += saldoCont;
 
                 contenedor.innerHTML += `
-                    <div class="${sector.colorFondo} rounded-3xl p-8 shadow-sm relative border border-white/20 transition-all">
+                    <div class="${sector.colorFondo} rounded-[32px] p-8 shadow-sm relative border border-white/50 transition-all hover:shadow-md">
                         <div class="flex justify-between items-start mb-6">
-                            <h2 class="text-3xl font-bold text-gray-800">${sector.nombre}</h2>
-                            <button onclick="abrirConfigSector(${sector.id})" class="text-gray-400 hover:text-gray-600 transition">
-                                <i class="fas fa-cog text-xl"></i>
+                            <h2 class="text-2xl font-black text-gray-800 tracking-tight">${sector.nombre}</h2>
+                            <button onclick="abrirConfigSector(${sector.id})" class="text-gray-400 hover:text-gray-600 p-2">
+                                <i class="fas fa-cog text-lg"></i>
                             </button>
                         </div>
                         <div class="space-y-6">
                             <div>
-                                <p class="text-lg font-bold text-gray-600 mb-1 text-[12px] uppercase">Continental</p>
-                                <div class="${sector.colorNumero} rounded-xl p-4 inline-flex items-center gap-2 min-w-[200px]">
+                                <p class="text-[10px] font-black text-gray-500 mb-1 uppercase tracking-widest">Continental</p>
+                                <div class="${sector.colorNumero} rounded-2xl p-4 inline-flex items-center gap-2 min-w-[180px]">
                                     <span class="text-2xl font-black text-gray-900">${formatNumber(saldoCont)}</span>
-                                    <span class="text-lg font-medium italic">gs</span>
+                                    <span class="text-xs font-bold text-gray-500 uppercase">gs</span>
                                 </div>
                             </div>
                             <div>
-                                <p class="text-lg font-bold text-gray-600 mb-1 text-[12px] uppercase">Efectivo</p>
-                                <div class="${sector.colorNumero} rounded-xl p-4 inline-flex items-center gap-2 min-w-[200px]">
+                                <p class="text-[10px] font-black text-gray-500 mb-1 uppercase tracking-widest">Efectivo</p>
+                                <div class="${sector.colorNumero} rounded-2xl p-4 inline-flex items-center gap-2 min-w-[180px]">
                                     <span class="text-2xl font-black text-gray-900">${formatNumber(saldoEfec)}</span>
-                                    <span class="text-lg font-medium italic">gs</span>
+                                    <span class="text-xs font-bold text-gray-500 uppercase">gs</span>
                                 </div>
                             </div>
                         </div>
                         <div class="mt-8 flex justify-between items-center">
-                            <button onclick="prepararExtracto(${sector.id})" class="text-[10px] font-black bg-white/50 px-4 py-2 rounded-xl uppercase tracking-tighter">Ver Extracto</button>
-                            <button onclick="abrirRegistro(${sector.id})" class="text-gray-700 hover:scale-110 transition">
+                            <button onclick="prepararExtracto(${sector.id})" class="text-[9px] font-black bg-white/40 hover:bg-white/60 px-4 py-2 rounded-xl uppercase tracking-widest transition">Historial</button>
+                            <button onclick="abrirRegistro(${sector.id})" class="text-gray-800 hover:scale-110 transition active:scale-95">
                                 <i class="fas fa-plus-circle text-4xl"></i>
                             </button>
                         </div>
@@ -128,7 +135,6 @@
             document.getElementById('gran-total').innerText = `Total ${formatNumber(granTotalContinental)} gs`;
         }
 
-        // --- FUNCIONES DE CONFIGURACIÓN DE SECTOR ---
         function abrirConfigSector(id) {
             sectorActivoId = id;
             const sector = window.datosSectores.find(s => s.id === id);
@@ -140,11 +146,10 @@
                 const esActivo = col.fondo === sector.colorFondo;
                 gridColores.innerHTML += `
                     <button onclick="seleccionarNuevoColor('${col.fondo}', '${col.numero}')" 
-                        class="h-12 rounded-xl ${col.fondo} border-2 ${esActivo ? 'border-black' : 'border-transparent'} hover:scale-105 transition">
+                        class="h-10 w-10 rounded-full ${col.fondo} border-2 ${esActivo ? 'border-black scale-110' : 'border-white'} shadow-sm hover:scale-110 transition">
                     </button>
                 `;
             });
-
             document.getElementById('modal-config-sector').classList.remove('hidden');
         }
 
@@ -154,10 +159,9 @@
         function seleccionarNuevoColor(f, n) {
             nuevoColorFondo = f;
             nuevoColorNumero = n;
-            // Marcar visualmente la selección
             const botones = document.getElementById('grid-colores').querySelectorAll('button');
-            botones.forEach(btn => btn.classList.remove('border-black'));
-            event.target.classList.add('border-black');
+            botones.forEach(btn => btn.classList.remove('border-black', 'scale-110'));
+            event.target.classList.add('border-black', 'scale-110');
         }
 
         async function guardarCambiosSector() {
@@ -172,7 +176,7 @@
         }
 
         async function eliminarSector() {
-            if(confirm("¿ESTÁS SEGURA? Se borrarán todos los saldos e historial de este sector para siempre.")) {
+            if(confirm("¿Segura que deseas eliminar este sector? Se perderán todos sus datos.")) {
                 window.datosSectores = window.datosSectores.filter(s => s.id !== sectorActivoId);
                 await window.subirAFirebase();
                 cerrarConfigSector();
@@ -184,7 +188,6 @@
             nuevoColorFondo = null;
         }
 
-        // --- FUNCIONES DE MOVIMIENTOS ---
         function abrirRegistro(id, index = null) {
             sectorActivoId = id;
             editandoIndex = index;
@@ -201,7 +204,7 @@
                 document.getElementById('desc-movimiento').value = "";
             }
             
-            document.getElementById('cuerpo-modal-movimiento').className = `rounded-3xl p-8 w-full max-w-md shadow-2xl relative border border-white ${sector.colorFondo}`;
+            document.getElementById('cuerpo-modal-movimiento').className = `rounded-[40px] p-10 w-full max-w-md shadow-2xl relative border border-white ${sector.colorFondo}`;
             document.getElementById('modal-movimiento').classList.remove('hidden');
         }
 
@@ -256,15 +259,15 @@
                 if ((tipo === "Efectivo" && movEsEfectivo) || (tipo === "Continental" && !movEsEfectivo)) {
                     const esEgreso = mov.tipo.includes("Egreso");
                     tbody.innerHTML += `
-                        <tr class="border-b border-gray-100">
-                            <td class="p-4 text-xs text-gray-500">${mov.fecha}</td>
+                        <tr class="border-b border-gray-50">
+                            <td class="p-4 text-[10px] text-gray-400 font-bold">${mov.fecha}</td>
                             <td class="p-4 font-bold text-gray-700 text-sm">${mov.descripcion}</td>
-                            <td class="p-4 text-right font-black ${esEgreso ? 'text-red-500' : 'text-green-600'}">
+                            <td class="p-4 text-right font-black ${esEgreso ? 'text-red-400' : 'text-emerald-500'}">
                                 ${esEgreso ? '-' : '+'} ${formatNumber(mov.monto)}
                             </td>
                             <td class="p-4 text-center space-x-3">
-                                <button onclick="abrirRegistro(${sectorActivoId}, ${index})" class="text-blue-500"><i class="fas fa-edit"></i></button>
-                                <button onclick="eliminarMovimiento(${sectorActivoId}, ${index})" class="text-red-300 hover:text-red-500"><i class="fas fa-trash"></i></button>
+                                <button onclick="abrirRegistro(${sectorActivoId}, ${index})" class="text-blue-300 hover:text-blue-500"><i class="fas fa-edit"></i></button>
+                                <button onclick="eliminarMovimiento(${sectorActivoId}, ${index})" class="text-red-200 hover:text-red-400"><i class="fas fa-trash"></i></button>
                             </td>
                         </tr>
                     `;
@@ -274,7 +277,7 @@
         }
 
         async function eliminarMovimiento(sectorId, index) {
-            if(confirm("¿Eliminar este registro permanentemente?")) {
+            if(confirm("¿Eliminar este registro?")) {
                 const sector = window.datosSectores.find(s => s.id === sectorId);
                 sector.historial.splice(index, 1);
                 await window.subirAFirebase();
@@ -285,55 +288,59 @@
         function cerrarExtracto() { document.getElementById('modal-extracto').classList.add('hidden'); }
     </script>
 </head>
-<body class="bg-[#f2f2f7] p-4 md:p-8 font-sans">
+<body class="bg-[#F8F9FA] p-4 md:p-8 font-sans">
 
-    <header class="container mx-auto flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
-        <h1 class="text-4xl font-black text-gray-900 tracking-tight">Control de cuentas</h1>
-        <div class="bg-white px-8 py-4 rounded-3xl shadow-sm border border-gray-200">
-            <span id="gran-total" class="text-3xl font-black text-gray-800">Total 0 gs</span>
+    <header class="container mx-auto flex flex-col md:flex-row justify-between items-center mb-12 gap-4">
+        <div>
+            <h1 class="text-4xl font-black text-gray-900 tracking-tighter">Control de cuentas</h1>
+            <p class="text-gray-400 font-bold text-xs uppercase tracking-widest mt-1">Gestión Financiera</p>
+        </div>
+        <div class="bg-white px-10 py-5 rounded-[24px] shadow-sm border border-gray-100 text-center">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Continental</p>
+            <span id="gran-total" class="text-3xl font-black text-gray-900">0 gs</span>
         </div>
     </header>
 
     <main id="contenedor-sectores" class="container mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-12"></main>
 
     <!-- MODAL CONFIGURACIÓN SECTOR -->
-    <div id="modal-config-sector" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden flex items-center justify-center p-4 z-[70]">
-        <div class="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl relative">
-            <h3 class="text-xl font-black mb-6 text-gray-800">Configurar Sector</h3>
+    <div id="modal-config-sector" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-[70]">
+        <div class="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl relative border border-gray-50">
+            <h3 class="text-2xl font-black mb-8 text-gray-900 tracking-tight text-center">Configurar</h3>
             
-            <div class="space-y-6">
+            <div class="space-y-8">
                 <div>
-                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-2">Nombre del Sector</label>
-                    <input type="text" id="edit-nombre-sector" class="w-full p-4 rounded-2xl bg-gray-50 border border-gray-100 font-bold outline-none focus:border-black">
+                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-3 tracking-widest">Nombre</label>
+                    <input type="text" id="edit-nombre-sector" class="w-full p-4 rounded-2xl bg-gray-50 border-none font-bold outline-none focus:ring-2 ring-gray-100">
                 </div>
 
                 <div>
-                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-2">Cambiar Color</label>
-                    <div id="grid-colores" class="grid grid-cols-3 gap-3"></div>
+                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-3 tracking-widest text-center">Colores Pasteles</label>
+                    <div id="grid-colores" class="flex flex-wrap justify-center gap-3"></div>
                 </div>
 
-                <div class="pt-4 border-t border-gray-100">
-                    <button onclick="eliminarSector()" class="w-full text-red-400 font-bold text-sm flex items-center justify-center gap-2 hover:text-red-600 transition">
-                        <i class="fas fa-trash-alt"></i> ELIMINAR ESTE SECTOR
+                <div class="pt-6 border-t border-gray-50">
+                    <button onclick="eliminarSector()" class="w-full text-red-300 font-black text-[10px] uppercase tracking-widest hover:text-red-500 transition">
+                        Eliminar Sector
                     </button>
                 </div>
             </div>
 
-            <div class="flex justify-between mt-10">
-                <button onclick="cerrarConfigSector()" class="font-bold text-gray-400">Cancelar</button>
-                <button onclick="guardarCambiosSector()" class="bg-black text-white px-8 py-3 rounded-xl font-black shadow-lg">ACEPTAR</button>
+            <div class="flex flex-col gap-3 mt-10">
+                <button onclick="guardarCambiosSector()" class="bg-black text-white w-full py-4 rounded-2xl font-black shadow-lg active:scale-95 transition">GUARDAR CAMBIOS</button>
+                <button onclick="cerrarConfigSector()" class="text-gray-400 font-bold text-sm">Cerrar</button>
             </div>
         </div>
     </div>
 
     <!-- MODAL REGISTRO MOVIMIENTO -->
-    <div id="modal-movimiento" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-        <div id="cuerpo-modal-movimiento" class="rounded-3xl p-8 w-full max-w-md shadow-2xl relative border border-white">
-            <h2 id="titulo-sector-modal" class="text-4xl font-bold text-center mb-8">Sector</h2>
-            <div class="space-y-5">
+    <div id="modal-movimiento" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-50">
+        <div id="cuerpo-modal-movimiento" class="rounded-[40px] p-10 w-full max-w-md shadow-2xl relative border border-white">
+            <h2 id="titulo-sector-modal" class="text-3xl font-black text-center mb-8 tracking-tighter">Sector</h2>
+            <div class="space-y-6">
                 <div>
-                    <label class="block text-sm font-black uppercase text-gray-600 mb-1">Tipo</label>
-                    <select id="tipo-movimiento" class="w-full p-4 rounded-2xl bg-white/60 text-lg font-bold outline-none">
+                    <label class="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Tipo</label>
+                    <select id="tipo-movimiento" class="w-full p-4 rounded-2xl bg-white/50 text-lg font-bold outline-none border-none">
                         <option value="Continental">Ingreso Continental</option>
                         <option value="Efectivo">Ingreso Efectivo</option>
                         <option value="Egreso-Continental">Egreso Continental</option>
@@ -341,51 +348,51 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-black uppercase text-gray-600 mb-1">Monto (Gs)</label>
-                    <input type="text" id="monto-movimiento" oninput="formatearInput(this)" placeholder="0" class="w-full p-4 rounded-2xl bg-white/60 text-2xl font-black outline-none">
+                    <label class="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Monto (Gs)</label>
+                    <input type="text" id="monto-movimiento" oninput="formatearInput(this)" placeholder="0" class="w-full p-4 rounded-2xl bg-white/50 text-2xl font-black outline-none border-none">
                 </div>
                 <div>
-                    <label class="block text-sm font-black uppercase text-gray-600 mb-1">Concepto</label>
-                    <input type="text" id="desc-movimiento" placeholder="Ej: Pago de mercadería" class="w-full p-4 rounded-2xl bg-white/60 text-lg font-bold outline-none">
+                    <label class="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Concepto</label>
+                    <input type="text" id="desc-movimiento" placeholder="..." class="w-full p-4 rounded-2xl bg-white/50 text-lg font-bold outline-none border-none">
                 </div>
             </div>
-            <div class="flex justify-between mt-10">
-                <button onclick="cerrarModalMovimiento()" class="font-bold text-gray-600">Volver</button>
-                <button onclick="guardarMovimiento()" class="bg-black text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition">GUARDAR</button>
+            <div class="flex flex-col gap-3 mt-10">
+                <button onclick="guardarMovimiento()" class="bg-black text-white w-full py-5 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition">CONFIRMAR</button>
+                <button onclick="cerrarModalMovimiento()" class="text-gray-500 font-bold text-sm">Cancelar</button>
             </div>
         </div>
     </div>
 
     <!-- MODAL SELECCIÓN EXTRACTO -->
-    <div id="modal-seleccion-extracto" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl text-center border-8 border-gray-50">
-            <h2 class="text-2xl font-black mb-8 text-gray-800">Ver historial de:</h2>
-            <div class="flex flex-col gap-5">
-                <button onclick="abrirHistorialFiltrado('Continental')" class="bg-blue-50 text-blue-700 py-5 rounded-3xl font-black text-xl hover:bg-blue-100 transition">CONTINENTAL</button>
-                <button onclick="abrirHistorialFiltrado('Efectivo')" class="bg-green-50 text-green-700 py-5 rounded-3xl font-black text-xl hover:bg-green-100 transition">EFECTIVO</button>
-                <button onclick="cerrarSeleccionExtracto()" class="mt-4 text-gray-400 font-bold">Cerrar</button>
+    <div id="modal-seleccion-extracto" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl text-center">
+            <h2 class="text-xl font-black mb-8 text-gray-800 tracking-tight">Selecciona historial:</h2>
+            <div class="flex flex-col gap-4">
+                <button onclick="abrirHistorialFiltrado('Continental')" class="bg-blue-50 text-blue-600 py-5 rounded-2xl font-black text-lg hover:bg-blue-100 transition">BANCO</button>
+                <button onclick="abrirHistorialFiltrado('Efectivo')" class="bg-emerald-50 text-emerald-600 py-5 rounded-2xl font-black text-lg hover:bg-emerald-100 transition">EFECTIVO</button>
+                <button onclick="cerrarSeleccionExtracto()" class="mt-4 text-gray-300 font-bold text-xs uppercase tracking-widest">Cerrar</button>
             </div>
         </div>
     </div>
 
     <!-- MODAL TABLA EXTRACTO -->
-    <div id="modal-extracto" class="fixed inset-0 bg-black/60 backdrop-blur-md hidden flex items-center justify-center p-4 z-[60]">
-        <div class="bg-white rounded-[32px] p-8 w-full max-w-5xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl">
-            <div class="flex justify-between items-center mb-6">
+    <div id="modal-extracto" class="fixed inset-0 bg-black/50 backdrop-blur-lg hidden flex items-center justify-center p-4 z-[60]">
+        <div class="bg-white rounded-[40px] p-8 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl border border-gray-100">
+            <div class="flex justify-between items-center mb-8">
                 <div>
-                    <h2 id="titulo-extracto" class="text-3xl font-black text-gray-900">Extracto</h2>
-                    <p id="subtitulo-extracto" class="text-gray-400 font-black uppercase text-xs tracking-widest"></p>
+                    <h2 id="titulo-extracto" class="text-2xl font-black text-gray-900 tracking-tighter">Historial</h2>
+                    <p id="subtitulo-extracto" class="text-[10px] text-gray-400 font-black uppercase tracking-widest"></p>
                 </div>
-                <button onclick="cerrarExtracto()" class="bg-gray-100 w-10 h-10 rounded-full flex items-center justify-center text-2xl hover:bg-red-50 hover:text-red-500 transition">&times;</button>
+                <button onclick="cerrarExtracto()" class="bg-gray-50 w-12 h-12 rounded-full flex items-center justify-center text-2xl hover:bg-red-50 hover:text-red-500 transition shadow-sm">&times;</button>
             </div>
-            <div class="overflow-x-auto flex-grow rounded-2xl border border-gray-100">
-                <table class="w-full text-left border-collapse">
+            <div class="overflow-x-auto flex-grow rounded-[24px]">
+                <table class="w-full text-left">
                     <thead class="sticky top-0 bg-gray-50">
                         <tr>
-                            <th class="p-4 text-[10px] uppercase text-gray-400 font-black">Fecha</th>
-                            <th class="p-4 text-[10px] uppercase text-gray-400 font-black">Descripción</th>
-                            <th class="p-4 text-[10px] uppercase text-gray-400 font-black text-right">Monto</th>
-                            <th class="p-4 text-[10px] uppercase text-gray-400 font-black text-center">Acciones</th>
+                            <th class="p-4 text-[9px] uppercase text-gray-400 font-black tracking-widest">Fecha</th>
+                            <th class="p-4 text-[9px] uppercase text-gray-400 font-black tracking-widest">Concepto</th>
+                            <th class="p-4 text-[9px] uppercase text-gray-400 font-black tracking-widest text-right">Monto</th>
+                            <th class="p-4 text-[9px] uppercase text-gray-400 font-black tracking-widest text-center"></th>
                         </tr>
                     </thead>
                     <tbody id="tabla-historial-body"></tbody>
