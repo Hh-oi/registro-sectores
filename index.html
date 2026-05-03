@@ -3,158 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Cuentas</title>
+    <title>Control de Cuentas Sincronizado</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        sector: {
-                            'boutique': '#f8ccab', 'super': '#f9d1d1', 'ferre': '#fbf8d4',
-                            'mbru': '#dfeceb', 'mana': '#e1ebd0', 'surti': '#f7e3e9',
-                        },
-                        dinero: {
-                            'naranja': '#f1ab66', 'rosa': '#f18c94', 'amarillo': '#f7cd4f',
-                            'gris': '#a4b3b2', 'verde-osc': '#a3b497', 'rosa-osc': '#e7a0a6',
-                        }
-                    }
+    
+    <!-- Scripts de Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDP4o3pzYG_OpZNqi3o96sUkw2AwkIUOMU",
+            authDomain: "cuenta-iara.firebaseapp.com",
+            projectId: "cuenta-iara",
+            storageBucket: "cuenta-iara.firebasestorage.app",
+            messagingSenderId: "1098942038106",
+            appId: "1:1098942038106:web:03fdd648707a0e9ece5863"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const docRef = doc(db, "gestion", "cuentas");
+
+        // --- FUNCIÓN DE MUDANZA (IMPORTANTE) ---
+        async function iniciarApp() {
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                console.log("Base de datos vacía. Buscando datos locales para migrar...");
+                // Intentamos recuperar lo que ella ya cargó en su compu
+                const datosLocales = localStorage.getItem('cuentasData_v4');
+                
+                if (datosLocales) {
+                    window.datosSectores = JSON.parse(datosLocales);
+                    console.log("¡Datos encontrados! Migrando a Firebase...");
+                } else {
+                    // Si no hay nada de nada, creamos los sectores base
+                    window.datosSectores = [
+                        { id: 0, nombre: "Boutique", colorFondo: "bg-[#f8ccab]", colorNumero: "bg-[#f1ab66]", historial: [] },
+                        { id: 1, nombre: "Supermercado", colorFondo: "bg-[#f9d1d1]", colorNumero: "bg-[#f18c94]", historial: [] },
+                        { id: 2, nombre: "Ferretería", colorFondo: "bg-[#fbf8d4]", colorNumero: "bg-[#f7cd4f]", historial: [] },
+                        { id: 3, nombre: "Mburukuja", colorFondo: "bg-[#dfeceb]", colorNumero: "bg-[#a4b3b2]", historial: [] },
+                        { id: 4, nombre: "El Maná", colorFondo: "bg-[#e1ebd0]", colorNumero: "bg-[#a3b497]", historial: [] },
+                        { id: 5, nombre: "Surtidor", colorFondo: "bg-[#f7e3e9]", colorNumero: "bg-[#e7a0a6]", historial: [] }
+                    ];
                 }
+                await subirAFirebase();
+            }
+
+            // Escuchar cambios en tiempo real
+            onSnapshot(docRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    window.datosSectores = snapshot.data().sectores;
+                    renderizarSectores();
+                }
+            });
+        }
+
+        async function subirAFirebase() {
+            try {
+                await setDoc(docRef, { sectores: window.datosSectores });
+            } catch (e) {
+                console.error("Error:", e);
+                alert("Error al sincronizar. Revisa las reglas en la consola de Firebase.");
             }
         }
+
+        window.subirAFirebase = subirAFirebase;
+        iniciarApp();
     </script>
-    <style>
-        .font-serif-custom { font-family: 'Georgia', serif; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
-    </style>
-</head>
-<body class="bg-[#f2f2f7] font-sans p-4 md:p-6">
-
-    <header class="container mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4 px-4">
-        <h1 class="text-3xl font-bold text-gray-800">Control de cuentas</h1>
-        <div class="flex items-center gap-6">
-            <span id="gran-total" class="text-3xl font-bold text-gray-800">Total 0 gs</span>
-            <button onclick="mostrarModalSector()" class="bg-black text-white px-5 py-2 rounded-xl font-medium hover:bg-gray-800 transition shadow-md">
-                <i class="fas fa-plus"></i> Nuevo Sector
-            </button>
-        </div>
-    </header>
-
-    <main id="contenedor-sectores" class="container mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-10">
-    </main>
-
-    <div id="modal-movimiento" class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center p-4 z-50">
-        <div id="cuerpo-modal-movimiento" class="rounded-3xl p-8 w-full max-w-md shadow-2xl relative border border-white transition-all">
-            <h2 id="titulo-sector-modal" class="text-4xl font-bold text-center mb-6 font-serif-custom">Sector</h2>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xl font-bold mb-1">Movimiento</label>
-                    <select id="tipo-movimiento" class="w-full p-4 rounded-lg bg-opacity-50 bg-white text-xl font-bold border-none outline-none cursor-pointer">
-                        <option value="Continental">Ingreso en cuenta</option>
-                        <option value="Efectivo">Ingreso Efectivo</option>
-                        <option value="Egreso-Continental">Egreso de cuenta</option>
-                        <option value="Egreso-Efectivo">Egreso Efectivo</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xl font-bold mb-1">Monto</label>
-                    <input type="text" id="monto-movimiento" oninput="formatearInput(this)" placeholder="0" class="w-full p-4 rounded-lg bg-opacity-50 bg-white text-xl font-bold border-none outline-none">
-                </div>
-                <div>
-                    <label class="block text-xl font-bold mb-1">Descripción</label>
-                    <input type="text" id="desc-movimiento" placeholder="Escribe aquí..." class="w-full p-4 rounded-lg bg-opacity-50 bg-white text-xl font-bold border-none outline-none">
-                </div>
-            </div>
-            <div class="flex justify-between mt-8">
-                <button onclick="cerrarModalMovimiento()" class="text-gray-700 font-bold text-lg">Cancelar</button>
-                <button onclick="guardarMovimiento()" class="bg-black text-white px-8 py-3 rounded-xl font-bold text-lg">Guardar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-seleccion-extracto" class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center p-4 z-[55]">
-        <div class="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center">
-            <h2 class="text-2xl font-bold mb-6 font-serif-custom">¿Qué extracto deseas ver?</h2>
-            <div class="flex flex-col gap-4">
-                <button onclick="abrirHistorialFiltrado('Continental')" class="bg-blue-100 text-blue-700 py-4 rounded-2xl font-bold text-xl hover:bg-blue-200 transition">Cuenta Continental</button>
-                <button onclick="abrirHistorialFiltrado('Efectivo')" class="bg-green-100 text-green-700 py-4 rounded-2xl font-bold text-xl hover:bg-green-200 transition">Efectivo</button>
-                <button onclick="cerrarSeleccionExtracto()" class="mt-2 text-gray-500 font-medium">Cancelar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-extracto" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-[60]">
-        <div class="bg-white rounded-3xl p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
-            <div class="flex justify-between items-center mb-4">
-                <div>
-                    <h2 id="titulo-extracto" class="text-2xl font-bold font-serif-custom">Extracto</h2>
-                    <p id="subtitulo-extracto" class="text-gray-500 font-bold uppercase text-sm"></p>
-                </div>
-                <button onclick="cerrarExtracto()" class="text-2xl hover:text-red-500 transition">&times;</button>
-            </div>
-            <div class="overflow-x-auto flex-grow">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="border-b-2 border-gray-100">
-                            <th class="p-3 text-gray-400 font-bold uppercase text-xs">Fecha</th>
-                            <th class="p-3 text-gray-400 font-bold uppercase text-xs">Descripción</th>
-                            <th class="p-3 text-gray-400 font-bold uppercase text-xs text-right">Movimiento</th>
-                            <th class="p-3 text-gray-400 font-bold uppercase text-xs text-center">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-historial-body">
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-sector" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
-            <h2 class="text-3xl font-bold mb-6 font-serif-custom text-center">Nuevo Sector</h2>
-            
-            <div class="space-y-5">
-                <div>
-                    <label class="block text-gray-700 font-bold mb-2">Nombre del sector</label>
-                    <input type="text" id="nombre-nuevo-sector" class="w-full border-2 border-gray-100 p-4 rounded-xl outline-none focus:border-black transition" placeholder="Ej: Oficina...">
-                </div>
-
-                <div>
-                    <label class="block text-gray-700 font-bold mb-2">Color de la tarjeta</label>
-                    <div class="grid grid-cols-6 gap-3">
-                        <button onclick="seleccionarColorNuevo('#f8ccab', '#f1ab66')" class="w-8 h-8 rounded-full bg-sector-boutique border-2 border-transparent focus:border-black"></button>
-                        <button onclick="seleccionarColorNuevo('#f9d1d1', '#f18c94')" class="w-8 h-8 rounded-full bg-sector-super border-2 border-transparent focus:border-black"></button>
-                        <button onclick="seleccionarColorNuevo('#fbf8d4', '#f7cd4f')" class="w-8 h-8 rounded-full bg-sector-ferre border-2 border-transparent focus:border-black"></button>
-                        <button onclick="seleccionarColorNuevo('#dfeceb', '#a4b3b2')" class="w-8 h-8 rounded-full bg-sector-mbru border-2 border-transparent focus:border-black"></button>
-                        <button onclick="seleccionarColorNuevo('#e1ebd0', '#a3b497')" class="w-8 h-8 rounded-full bg-sector-mana border-2 border-transparent focus:border-black"></button>
-                        <button onclick="seleccionarColorNuevo('#f7e3e9', '#e7a0a6')" class="w-8 h-8 rounded-full bg-sector-surti border-2 border-transparent focus:border-black"></button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex flex-col gap-3 mt-8">
-                <button onclick="agregarSectorManual()" class="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition shadow-lg">Crear Sector</button>
-                <button onclick="cerrarModalSector()" class="w-full py-2 text-gray-500 font-bold hover:text-red-500 transition">Volver</button>
-            </div>
-        </div>
-    </div>
 
     <script>
-        let datosSectores = JSON.parse(localStorage.getItem('cuentasData_v4')) || [
-            { id: 0, nombre: "Boutique", colorFondo: "bg-[#f8ccab]", colorNumero: "bg-[#f1ab66]", historial: [] },
-            { id: 1, nombre: "Supermercado", colorFondo: "bg-[#f9d1d1]", colorNumero: "bg-[#f18c94]", historial: [] },
-            { id: 2, nombre: "Ferretería", colorFondo: "bg-[#fbf8d4]", colorNumero: "bg-[#f7cd4f]", historial: [] },
-            { id: 3, nombre: "Mburukuja", colorFondo: "bg-[#dfeceb]", colorNumero: "bg-[#a4b3b2]", historial: [] },
-            { id: 4, nombre: "El Maná", colorFondo: "bg-[#e1ebd0]", colorNumero: "bg-[#a3b497]", historial: [] },
-            { id: 5, nombre: "Surtidor", colorFondo: "bg-[#f7e3e9]", colorNumero: "bg-[#e7a0a6]", historial: [] }
-        ];
-
         let sectorActivoId = null;
-        let tipoExtractoActivo = null; 
+        let tipoExtractoActivo = null;
         let editandoIndex = null;
-        let colorFondoSeleccionado = "bg-[#dfeceb]"; 
+        let colorFondoSeleccionado = "bg-[#dfeceb]";
         let colorNumeroSeleccionado = "bg-[#a4b3b2]";
 
         function formatNumber(num) {
@@ -167,7 +90,8 @@
         }
 
         function calcularSaldo(sectorId, tipo) {
-            const sector = datosSectores.find(s => s.id === sectorId);
+            const sector = window.datosSectores.find(s => s.id === sectorId);
+            if(!sector) return 0;
             return sector.historial.reduce((acc, mov) => {
                 const esEfectivo = mov.tipo.includes("Efectivo");
                 const esEgreso = mov.tipo.includes("Egreso");
@@ -177,77 +101,87 @@
             }, 0);
         }
 
-        function actualizarGranTotal() {
-            const total = datosSectores.reduce((acc, s) => acc + calcularSaldo(s.id, "Continental"), 0);
-            document.getElementById('gran-total').innerText = `Total ${formatNumber(total)} gs`;
-        }
-
         function renderizarSectores() {
             const contenedor = document.getElementById('contenedor-sectores');
+            if(!contenedor) return;
             contenedor.innerHTML = '';
-            datosSectores.forEach((sector) => {
+            
+            let granTotal = 0;
+            window.datosSectores.forEach((sector) => {
                 const saldoCont = calcularSaldo(sector.id, "Continental");
                 const saldoEfec = calcularSaldo(sector.id, "Efectivo");
+                granTotal += saldoCont;
+
                 contenedor.innerHTML += `
-                    <div class="${sector.colorFondo} rounded-3xl p-8 shadow-sm relative transition border border-white/20">
-                        <h2 class="text-4xl font-semibold text-gray-800 font-serif-custom mb-6">${sector.nombre}</h2>
+                    <div class="${sector.colorFondo} rounded-3xl p-8 shadow-sm relative border border-white/20">
+                        <h2 class="text-4xl font-semibold text-gray-800 mb-6">${sector.nombre}</h2>
                         <div class="space-y-6">
                             <div>
                                 <p class="text-xl font-bold text-gray-700 mb-1">Continental</p>
-                                <div class="${sector.colorNumero} rounded-xl p-4 inline-flex items-center gap-2 min-w-[220px] shadow-inner">
+                                <div class="${sector.colorNumero} rounded-xl p-4 inline-flex items-center gap-2 min-w-[220px]">
                                     <span class="text-2xl font-bold text-gray-900">${formatNumber(saldoCont)}</span>
-                                    <span class="text-xl font-medium text-gray-800">gs</span>
+                                    <span class="text-xl font-medium">gs</span>
                                 </div>
                             </div>
                             <div>
                                 <p class="text-xl font-bold text-gray-700 mb-1">Efectivo</p>
-                                <div class="${sector.colorNumero} rounded-xl p-4 inline-flex items-center gap-2 min-w-[220px] shadow-inner">
+                                <div class="${sector.colorNumero} rounded-xl p-4 inline-flex items-center gap-2 min-w-[220px]">
                                     <span class="text-2xl font-bold text-gray-900">${formatNumber(saldoEfec)}</span>
-                                    <span class="text-xl font-medium text-gray-800">gs</span>
+                                    <span class="text-xl font-medium">gs</span>
                                 </div>
                             </div>
                         </div>
                         <div class="mt-8 flex justify-between items-center">
-                            <button onclick="prepararExtracto(${sector.id})" class="text-xs font-black tracking-widest bg-white/40 px-4 py-2 rounded-xl hover:bg-white/60 transition uppercase">Ver Extracto</button>
-                            <button onclick="abrirRegistro(${sector.id})" class="text-gray-600 hover:text-black transition">
+                            <button onclick="prepararExtracto(${sector.id})" class="text-xs font-black bg-white/40 px-4 py-2 rounded-xl uppercase">Ver Extracto</button>
+                            <button onclick="abrirRegistro(${sector.id})" class="text-gray-600">
                                 <i class="fas fa-plus text-3xl"></i>
                             </button>
                         </div>
                     </div>
                 `;
             });
-            actualizarGranTotal();
-            localStorage.setItem('cuentasData_v4', JSON.stringify(datosSectores));
+            document.getElementById('gran-total').innerText = `Total ${formatNumber(granTotal)} gs`;
         }
 
-        function seleccionarColorNuevo(fondo, numero) {
-            colorFondoSeleccionado = `bg-[${fondo}]`;
-            colorNumeroSeleccionado = `bg-[${numero}]`;
+        async function guardarMovimiento() {
+            const monto = parseInt(document.getElementById('monto-movimiento').value.replace(/\./g, "")) || 0;
+            const tipo = document.getElementById('tipo-movimiento').value;
+            const desc = document.getElementById('desc-movimiento').value || "Sin descripción";
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
+
+            const movData = { fecha: new Date().toLocaleDateString('es-PY'), descripcion: desc, monto, tipo };
+            if (editandoIndex !== null) sector.historial[editandoIndex] = movData;
+            else sector.historial.push(movData);
+
+            await window.subirAFirebase();
+            cerrarModalMovimiento();
+            if(!document.getElementById('modal-extracto').classList.contains('hidden')) abrirHistorialFiltrado(tipoExtractoActivo);
         }
 
-        function agregarSectorManual() {
-            const nombre = document.getElementById('nombre-nuevo-sector').value;
-            if(nombre) {
-                datosSectores.push({ 
-                    id: Date.now(), 
-                    nombre, 
-                    colorFondo: colorFondoSeleccionado, 
-                    colorNumero: colorNumeroSeleccionado, 
-                    historial: [] 
-                });
-                renderizarSectores();
-                cerrarModalSector();
-                document.getElementById('nombre-nuevo-sector').value = "";
+        async function eliminarMovimiento(sectorId, index) {
+            if(confirm("¿Borrar registro?")) {
+                window.datosSectores.find(s => s.id === sectorId).historial.splice(index, 1);
+                await window.subirAFirebase();
+                abrirHistorialFiltrado(tipoExtractoActivo);
             }
         }
 
-        function prepararExtracto(id) { sectorActivoId = id; document.getElementById('modal-seleccion-extracto').classList.remove('hidden'); }
+        // --- FUNCIONES DE UI ---
+        function mostrarModalSector() { document.getElementById('modal-sector').classList.remove('hidden'); }
+        function cerrarModalSector() { document.getElementById('modal-sector').classList.add('hidden'); }
+        function cerrarModalMovimiento() { document.getElementById('modal-movimiento').classList.add('hidden'); }
+        function cerrarExtracto() { document.getElementById('modal-extracto').classList.add('hidden'); }
         function cerrarSeleccionExtracto() { document.getElementById('modal-seleccion-extracto').classList.add('hidden'); }
+
+        function prepararExtracto(id) { 
+            sectorActivoId = id; 
+            document.getElementById('modal-seleccion-extracto').classList.remove('hidden'); 
+        }
 
         function abrirHistorialFiltrado(tipo) {
             tipoExtractoActivo = tipo;
             cerrarSeleccionExtracto();
-            const sector = datosSectores.find(s => s.id === sectorActivoId);
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             document.getElementById('titulo-extracto').innerText = `Extracto - ${sector.nombre}`;
             document.getElementById('subtitulo-extracto').innerText = `Movimientos: ${tipo}`;
             const tbody = document.getElementById('tabla-historial-body');
@@ -258,7 +192,7 @@
                     const esEgreso = mov.tipo.includes("Egreso");
                     tbody.innerHTML += `
                         <tr class="border-b border-gray-50">
-                            <td class="p-4 text-sm text-gray-500">${mov.fecha}</td>
+                            <td class="p-4 text-sm text-gray-50">${mov.fecha}</td>
                             <td class="p-4 font-bold text-gray-700">${mov.descripcion}</td>
                             <td class="p-4 text-right font-black ${esEgreso ? 'text-red-500' : 'text-green-600'}">${esEgreso ? '-' : '+'} ${formatNumber(mov.monto)}</td>
                             <td class="p-4 text-center space-x-3">
@@ -274,7 +208,7 @@
 
         function abrirRegistro(id, index = null) {
             sectorActivoId = id; editandoIndex = index;
-            const sector = datosSectores.find(s => s.id === id);
+            const sector = window.datosSectores.find(s => s.id === id);
             document.getElementById('titulo-sector-modal').innerText = sector.nombre;
             if(index !== null) {
                 const mov = sector.historial[index];
@@ -289,33 +223,114 @@
             document.getElementById('modal-movimiento').classList.remove('hidden');
         }
 
-        function guardarMovimiento() {
-            const monto = parseInt(document.getElementById('monto-movimiento').value.replace(/\./g, "")) || 0;
-            const tipo = document.getElementById('tipo-movimiento').value;
-            const desc = document.getElementById('desc-movimiento').value || "Sin descripción";
-            const sector = datosSectores.find(s => s.id === sectorActivoId);
-            const movData = { fecha: new Date().toLocaleDateString('es-PY'), descripcion: desc, monto, tipo };
-            if (editandoIndex !== null) sector.historial[editandoIndex] = movData;
-            else sector.historial.push(movData);
-            renderizarSectores();
-            cerrarModalMovimiento();
-            if(!document.getElementById('modal-extracto').classList.contains('hidden')) abrirHistorialFiltrado(tipoExtractoActivo);
-        }
-
-        function eliminarMovimiento(sectorId, index) {
-            if(confirm("¿Borrar registro?")) {
-                datosSectores.find(s => s.id === sectorId).historial.splice(index, 1);
-                renderizarSectores();
-                abrirHistorialFiltrado(tipoExtractoActivo);
+        async function agregarSectorManual() {
+            const nombre = document.getElementById('nombre-nuevo-sector').value;
+            if(nombre) {
+                window.datosSectores.push({ 
+                    id: Date.now(), 
+                    nombre, 
+                    colorFondo: colorFondoSeleccionado, 
+                    colorNumero: "bg-gray-300", 
+                    historial: [] 
+                });
+                await window.subirAFirebase();
+                cerrarModalSector();
+                document.getElementById('nombre-nuevo-sector').value = "";
             }
         }
-
-        function cerrarModalMovimiento() { document.getElementById('modal-movimiento').classList.add('hidden'); }
-        function cerrarExtracto() { document.getElementById('modal-extracto').classList.add('hidden'); }
-        function mostrarModalSector() { document.getElementById('modal-sector').classList.remove('hidden'); }
-        function cerrarModalSector() { document.getElementById('modal-sector').classList.add('hidden'); }
-
-        renderizarSectores();
     </script>
+</head>
+<body class="bg-[#f2f2f7] p-4 md:p-6">
+
+    <header class="container mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4 px-4">
+        <h1 class="text-3xl font-bold text-gray-800">Control de cuentas</h1>
+        <div class="flex items-center gap-6">
+            <span id="gran-total" class="text-3xl font-bold text-gray-800 text-right">Total 0 gs</span>
+            <button onclick="mostrarModalSector()" class="bg-black text-white px-5 py-2 rounded-xl font-medium shadow-md">
+                <i class="fas fa-plus"></i> Nuevo Sector
+            </button>
+        </div>
+    </header>
+
+    <main id="contenedor-sectores" class="container mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-10"></main>
+
+    <!-- MODAL MOVIMIENTO -->
+    <div id="modal-movimiento" class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center p-4 z-50">
+        <div id="cuerpo-modal-movimiento" class="rounded-3xl p-8 w-full max-w-md shadow-2xl relative border border-white">
+            <h2 id="titulo-sector-modal" class="text-4xl font-bold text-center mb-6">Sector</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xl font-bold mb-1">Movimiento</label>
+                    <select id="tipo-movimiento" class="w-full p-4 rounded-lg bg-white/50 text-xl font-bold outline-none border-none">
+                        <option value="Continental">Ingreso en cuenta</option>
+                        <option value="Efectivo">Ingreso Efectivo</option>
+                        <option value="Egreso-Continental">Egreso de cuenta</option>
+                        <option value="Egreso-Efectivo">Egreso Efectivo</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xl font-bold mb-1">Monto</label>
+                    <input type="text" id="monto-movimiento" oninput="formatearInput(this)" placeholder="0" class="w-full p-4 rounded-lg bg-white/50 text-xl font-bold outline-none border-none">
+                </div>
+                <div>
+                    <label class="block text-xl font-bold mb-1">Descripción</label>
+                    <input type="text" id="desc-movimiento" placeholder="Escribe aquí..." class="w-full p-4 rounded-lg bg-white/50 text-xl font-bold outline-none border-none">
+                </div>
+            </div>
+            <div class="flex justify-between mt-8">
+                <button onclick="cerrarModalMovimiento()" class="font-bold text-lg text-gray-700">Cancelar</button>
+                <button onclick="guardarMovimiento()" class="bg-black text-white px-8 py-3 rounded-xl font-bold text-lg">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SELECCIÓN EXTRACTO -->
+    <div id="modal-seleccion-extracto" class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center">
+            <h2 class="text-2xl font-bold mb-6">¿Qué extracto ver?</h2>
+            <div class="flex flex-col gap-4">
+                <button onclick="abrirHistorialFiltrado('Continental')" class="bg-blue-100 text-blue-700 py-4 rounded-2xl font-bold text-xl">Continental</button>
+                <button onclick="abrirHistorialFiltrado('Efectivo')" class="bg-green-100 text-green-700 py-4 rounded-2xl font-bold text-xl">Efectivo</button>
+                <button onclick="cerrarSeleccionExtracto()" class="mt-2 text-gray-500">Volver</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABLA EXTRACTO -->
+    <div id="modal-extracto" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-[60]">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h2 id="titulo-extracto" class="text-2xl font-bold">Extracto</h2>
+                    <p id="subtitulo-extracto" class="text-gray-500 font-bold uppercase text-sm"></p>
+                </div>
+                <button onclick="cerrarExtracto()" class="text-2xl">&times;</button>
+            </div>
+            <div class="overflow-x-auto flex-grow">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="border-b-2 border-gray-100">
+                            <th class="p-3 text-xs uppercase text-gray-400">Fecha</th>
+                            <th class="p-3 text-xs uppercase text-gray-400">Descripción</th>
+                            <th class="p-3 text-xs uppercase text-gray-400 text-right">Movimiento</th>
+                            <th class="p-3 text-xs uppercase text-gray-400 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-historial-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL NUEVO SECTOR -->
+    <div id="modal-sector" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+            <h2 class="text-3xl font-bold mb-6 text-center">Nuevo Sector</h2>
+            <input type="text" id="nombre-nuevo-sector" class="w-full border-2 border-gray-100 p-4 rounded-xl outline-none focus:border-black transition mb-6" placeholder="Nombre...">
+            <button onclick="agregarSectorManual()" class="w-full bg-black text-white py-4 rounded-xl font-bold text-lg">Crear Sector</button>
+            <button onclick="cerrarModalSector()" class="w-full py-2 text-gray-500 font-bold mt-2">Volver</button>
+        </div>
+    </div>
+
 </body>
 </html>
