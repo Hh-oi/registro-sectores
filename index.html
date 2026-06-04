@@ -35,6 +35,10 @@
                 if (snapshot.exists()) {
                     window.datosSectores = snapshot.data().sectores || [];
                     renderizarSectores();
+                    // Si el extracto está abierto, refrescar su contenido visual también
+                    if(!document.getElementById('modal-extracto').classList.contains('hidden')) {
+                        abrirHistorialFiltrado(tipoExtractoActivo, true);
+                    }
                 } else {
                     window.datosSectores = [];
                     renderizarSectores();
@@ -58,6 +62,7 @@
         let sectorActivoId = null;
         let tipoExtractoActivo = null;
         let editandoIndex = null;
+        let funcionConfirmarAccion = null;
 
         const opcionesColores = [
             { fondo: 'bg-[#E7F5E9]', numero: 'bg-[#C8E6C9]/40', nombre: 'Menta' },
@@ -67,7 +72,7 @@
             { fondo: 'bg-[#FCE4EC]', numero: 'bg-[#F8BBD0]/40', nombre: 'Rosa' },
             { fondo: 'bg-[#E0F2F1]', numero: 'bg-[#B2DFDB]/40', nombre: 'Turquesa' },
             { fondo: 'bg-[#FFFDE7]', numero: 'bg-[#FFF9C4]/40', nombre: 'Vainilla' },
-            { fondo: 'bg-[#F1F8E9]', numero: 'bg-[#DCEDC8]/40', fontStyle: 'bold', nombre: 'Lima' },
+            { fondo: 'bg-[#F1F8E9]', numero: 'bg-[#DCEDC8]/40', nombre: 'Lima' },
             { fondo: 'bg-[#EFEBE9]', numero: 'bg-[#D7CCC8]/40', nombre: 'Arena' },
             { fondo: 'bg-[#F5F5F5]', numero: 'bg-[#E0E0E0]/40', nombre: 'Nube' },
             { fondo: 'bg-[#E8EAF6]', numero: 'bg-[#C5CAE9]/40', nombre: 'Indigo' },
@@ -86,12 +91,28 @@
             input.value = val ? val.replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
         }
 
-        // Detectar si se presiona la tecla Enter para confirmar automáticamente
         function verificarEnter(event) {
             if (event.key === "Enter") {
-                event.preventDefault(); // Evita comportamientos extraños del navegador
+                event.preventDefault();
                 guardarMovimiento();
             }
+        }
+
+        // Alerta elegante personalizada que reemplaza al confirm() nativo
+        function mostrarConfirmacionElegante(mensaje, accion) {
+            document.getElementById('texto-confirmacion-modal').innerText = mensaje;
+            funcionConfirmarAccion = accion;
+            document.getElementById('modal-confirmacion-elegante').classList.remove('hidden');
+        }
+
+        function cerrarConfirmacionElegante() {
+            document.getElementById('modal-confirmacion-elegante').classList.add('hidden');
+            funcionConfirmarAccion = null;
+        }
+
+        function ejecutarAccionConfirmada() {
+            if(funcionConfirmarAccion) funcionConfirmarAccion();
+            cerrarConfirmacionElegante();
         }
 
         function calcularSaldo(sectorId, tipo) {
@@ -194,16 +215,18 @@
                 sector.colorFondo = nuevoColorFondo;
                 sector.colorNumero = nuevoColorNumero;
             }
-            await window.subirAFirebase();
+            renderizarSectores(); // Instantáneo
             cerrarConfigSector();
+            window.subirAFirebase(); // Segundo plano
         }
 
-        async function eliminarSector() {
-            if(confirm("¿Segura que deseas eliminar este sector?")) {
+        function eliminarSector() {
+            mostrarConfirmacionElegante("¿Segura que deseas eliminar este sector por completo?", async () => {
                 window.datosSectores = window.datosSectores.filter(s => s.id !== sectorActivoId);
-                await window.subirAFirebase();
+                renderizarSectores(); // Instantáneo
                 cerrarConfigSector();
-            }
+                window.subirAFirebase(); // Segundo plano
+            });
         }
 
         function cerrarConfigSector() {
@@ -242,10 +265,7 @@
 
         async function crearSector() {
             const nombre = document.getElementById('nuevo-nombre-sector').value.trim();
-            if(!nombre) {
-                alert("Por favor, ingresa un nombre para el sector.");
-                return;
-            }
+            if(!nombre) return;
 
             const nuevoSector = {
                 id: Date.now(),
@@ -256,8 +276,9 @@
             };
 
             window.datosSectores.push(nuevoSector);
-            await window.subirAFirebase();
+            renderizarSectores(); // Instantáneo
             cerrarNuevoSectorModal();
+            window.subirAFirebase(); // Segundo plano
         }
 
         function abrirRegistro(id, index = null) {
@@ -277,7 +298,6 @@
             document.getElementById('cuerpo-modal-movimiento').className = `rounded-[40px] p-10 w-full max-w-md shadow-2xl relative border border-white ${sector.colorFondo}`;
             document.getElementById('modal-movimiento').classList.remove('hidden');
             
-            // Auto-enfocar el campo del monto al abrir para mayor comodidad
             setTimeout(() => document.getElementById('monto-movimiento').focus(), 100);
         }
 
@@ -304,11 +324,15 @@
                 sector.historial.push(movData);
             }
 
-            await window.subirAFirebase();
+            // Renderizado veloz e instantáneo local
+            renderizarSectores();
             cerrarModalMovimiento();
             if(!document.getElementById('modal-extracto').classList.contains('hidden')) {
-                abrirHistorialFiltrado(tipoExtractoActivo);
+                abrirHistorialFiltrado(tipoExtractoActivo, false);
             }
+
+            // Sincroniza en background sin trabar la interfaz
+            window.subirAFirebase();
         }
 
         function prepararExtracto(id) {
@@ -318,10 +342,13 @@
 
         function cerrarSeleccionExtracto() { document.getElementById('modal-seleccion-extracto').classList.add('hidden'); }
 
-        function abrirHistorialFiltrado(tipo) {
+        function abrirHistorialFiltrado(tipo, desdeSnapshot = false) {
             tipoExtractoActivo = tipo;
-            cerrarSeleccionExtracto();
+            if(!desdeSnapshot) cerrarSeleccionExtracto();
+            
             const sector = window.datosSectores.find(s => s.id === sectorActivoId);
+            if(!sector) return;
+            
             document.getElementById('titulo-extracto').innerText = `Extracto - ${sector.nombre}`;
             document.getElementById('subtitulo-extracto').innerText = `Filtro: ${tipo}`;
             const tbody = document.getElementById('tabla-historial-body');
@@ -351,13 +378,16 @@
             document.getElementById('modal-extracto').classList.remove('hidden');
         }
 
-        async function eliminarMovimiento(sectorId, index) {
-            if(confirm("¿Eliminar este registro?")) {
+        function eliminarMovimiento(sectorId, index) {
+            // Confirmación suave, rápida y muy estética
+            mostrarConfirmacionElegante("¿Deseas eliminar este registro?", async () => {
                 const sector = window.datosSectores.find(s => s.id === sectorId);
                 sector.historial.splice(index, 1);
-                await window.subirAFirebase();
-                abrirHistorialFiltrado(tipoExtractoActivo);
-            }
+                
+                renderizarSectores(); // Refresco inmediato
+                abrirHistorialFiltrado(tipoExtractoActivo, false);
+                window.subirAFirebase(); // Guardado de fondo
+            });
         }
 
         function cerrarExtracto() { document.getElementById('modal-extracto').classList.add('hidden'); }
@@ -377,11 +407,7 @@
         function descargarExcel() {
             const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             const movimientos = obtenerDatosFiltrados();
-            
-            if(movimientos.length === 0) {
-                alert("No hay registros en este historial para exportar.");
-                return;
-            }
+            if(movimientos.length === 0) return;
 
             const filas = movimientos.map(m => {
                 const esEgreso = m.tipo.includes("Egreso");
@@ -396,7 +422,6 @@
             const hoja = XLSX.utils.json_to_sheet(filas);
             const libro = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(libro, hoja, "Extracto");
-            
             XLSX.writeFile(libro, `Extracto_${sector.nombre}_${tipoExtractoActivo}.xlsx`);
         }
 
@@ -406,11 +431,7 @@
             
             const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             const movimientos = obtenerDatosFiltrados();
-
-            if(movimientos.length === 0) {
-                alert("No hay registros en este historial para exportar.");
-                return;
-            }
+            if(movimientos.length === 0) return;
 
             doc.setFont("helvetica", "bold");
             doc.setFontSize(20);
@@ -453,7 +474,7 @@
         }
     </script>
 </head>
-<body class="bg-[#F8F9FA] p-4 md:p-8 font-sans">
+<body class="bg-[#F8F9FA] p-4 md:p-8 font-sans select-none">
 
     <header class="container mx-auto flex flex-col md:flex-row justify-between items-center mb-12 gap-4">
         <div>
@@ -470,6 +491,20 @@
     </header>
 
     <main id="contenedor-sectores" class="container mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-12"></main>
+
+    <!-- NOUVEAU MODAL DE CONFIRMACIÓN ELEGANTE (REEMPLAZA AL DE LA IMAGEN) -->
+    <div id="modal-confirmacion-elegante" class="fixed inset-0 bg-black/40 backdrop-blur-md hidden flex items-center justify-center p-4 z-[999] transition-all">
+        <div class="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl border border-gray-100 text-center">
+            <div class="w-12 h-12 bg-red-50 text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 text-xl">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 id="texto-confirmacion-modal" class="text-lg font-bold text-gray-800 mb-6 px-2">¿Estás segura?</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="cerrarConfirmacionElegante()" class="bg-gray-100 text-gray-500 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-gray-200 transition">Cancelar</button>
+                <button onclick="ejecutarAccionConfirmada()" class="bg-black text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-md active:scale-95 transition">Aceptar</button>
+            </div>
+        </div>
+    </div>
 
     <!-- MODAL PARA NUEVO SECTOR -->
     <div id="modal-nuevo-sector" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-[70]">
@@ -516,7 +551,7 @@
         </div>
     </div>
 
-    <!-- MODAL MOVIMIENTO (ACTUALIZADO CON EVENTO ENTER) -->
+    <!-- MODAL MOVIMIENTO -->
     <div id="modal-movimiento" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-50">
         <div id="cuerpo-modal-movimiento" class="rounded-[40px] p-10 w-full max-w-md shadow-2xl relative border border-white">
             <h2 id="titulo-sector-modal" class="text-3xl font-black text-center mb-8 tracking-tighter">Sector</h2>
@@ -532,12 +567,10 @@
                 </div>
                 <div>
                     <label class="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Monto (Gs)</label>
-                    <!-- Al tocar enter aquí se confirmará automáticamente -->
                     <input type="text" id="monto-movimiento" oninput="formatearInput(this)" onkeydown="verificarEnter(event)" placeholder="0" class="w-full p-4 rounded-2xl bg-white/50 text-2xl font-black outline-none border-none">
                 </div>
                 <div>
                     <label class="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Concepto</label>
-                    <!-- Al tocar enter aquí también se confirmará automáticamente -->
                     <input type="text" id="desc-movimiento" onkeydown="verificarEnter(event)" placeholder="..." class="w-full p-4 rounded-2xl bg-white/50 text-lg font-bold outline-none border-none">
                 </div>
             </div>
