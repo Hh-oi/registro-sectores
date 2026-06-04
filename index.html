@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
-    <!-- Scripts de Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -28,7 +27,10 @@
         async function iniciarApp() {
             onSnapshot(docRef, (snapshot) => {
                 if (snapshot.exists()) {
-                    window.datosSectores = snapshot.data().sectores;
+                    window.datosSectores = snapshot.data().sectores || [];
+                    renderizarSectores();
+                } else {
+                    window.datosSectores = [];
                     renderizarSectores();
                 }
             });
@@ -63,7 +65,7 @@
             { fondo: 'bg-[#EFEBE9]', numero: 'bg-[#D7CCC8]/40', nombre: 'Arena' },
             { fondo: 'bg-[#F5F5F5]', numero: 'bg-[#E0E0E0]/40', nombre: 'Nube' },
             { fondo: 'bg-[#E8EAF6]', numero: 'bg-[#C5CAE9]/40', nombre: 'Indigo' },
-            { fondo: 'bg-[#E0F7FA]', numero: 'bg-[#B2EBF2]/40', nombre: 'Cian' }
+            { fondo: 'bg-[#E0F7FA]', numero: 'bg-[#B2EBF2]/40', font: 'Cian' }
         ];
 
         function formatNumber(num) {
@@ -80,7 +82,7 @@
 
         function calcularSaldo(sectorId, tipo) {
             const sector = window.datosSectores.find(s => s.id === sectorId);
-            if(!sector) return 0;
+            if(!sector || !sector.historial) return 0;
             return sector.historial.reduce((acc, mov) => {
                 const esEfectivo = mov.tipo.includes("Efectivo");
                 const esEgreso = mov.tipo.includes("Egreso");
@@ -101,7 +103,6 @@
                 const saldoEfec = calcularSaldo(sector.id, "Efectivo");
                 granTotalContinental += saldoCont;
 
-                // Lógica de colores para negativos
                 const colorTextoCont = saldoCont < 0 ? 'text-red-600' : 'text-gray-900';
                 const colorTextoEfec = saldoEfec < 0 ? 'text-red-600' : 'text-gray-900';
 
@@ -144,7 +145,6 @@
             totalElement.className = `text-3xl font-black ${granTotalContinental < 0 ? 'text-red-600' : 'text-gray-900'}`;
         }
 
-        // Resto de funciones se mantienen igual...
         function abrirConfigSector(id) {
             sectorActivoId = id;
             const sector = window.datosSectores.find(s => s.id === id);
@@ -197,6 +197,57 @@
             nuevoColorFondo = null;
         }
 
+        // --- Funciones Nuevas para crear Sector ---
+        function abrirNuevoSectorModal() {
+            document.getElementById('nuevo-nombre-sector').value = "";
+            nuevoColorFondo = opcionesColores[0].fondo;
+            nuevoColorNumero = opcionesColores[0].numero;
+            
+            const gridColores = document.getElementById('grid-colores-nuevo');
+            gridColores.innerHTML = '';
+            opcionesColores.forEach((col, i) => {
+                gridColores.innerHTML += `
+                    <button onclick="seleccionarNuevoColorCreado('${col.fondo}', '${col.numero}')" 
+                        class="h-10 w-10 rounded-full ${col.fondo} border-2 ${i === 0 ? 'border-black scale-110' : 'border-white'} shadow-sm hover:scale-110 transition">
+                    </button>
+                `;
+            });
+            document.getElementById('modal-nuevo-sector').classList.remove('hidden');
+        }
+
+        function seleccionarNuevoColorCreado(f, n) {
+            nuevoColorFondo = f;
+            nuevoColorNumero = n;
+            const botones = document.getElementById('grid-colores-nuevo').querySelectorAll('button');
+            botones.forEach(btn => btn.classList.remove('border-black', 'scale-110'));
+            event.target.classList.add('border-black', 'scale-110');
+        }
+
+        function cerrarNuevoSectorModal() {
+            document.getElementById('modal-nuevo-sector').classList.add('hidden');
+        }
+
+        async function crearSector() {
+            const nombre = document.getElementById('nuevo-nombre-sector').value.trim();
+            if(!nombre) {
+                alert("Por favor, ingresa un nombre para el sector.");
+                return;
+            }
+
+            const nuevoSector = {
+                id: Date.now(), // ID único basado en tiempo
+                nombre: nombre,
+                colorFondo: nuevoColorFondo,
+                colorNumero: nuevoColorNumero,
+                historial: []
+            };
+
+            window.datosSectores.push(nuevoSector);
+            await window.subirAFirebase();
+            cerrarNuevoSectorModal();
+        }
+        // ------------------------------------------
+
         function abrirRegistro(id, index = null) {
             sectorActivoId = id;
             editandoIndex = index;
@@ -234,6 +285,7 @@
             if (editandoIndex !== null) {
                 sector.historial[editandoIndex] = movData;
             } else {
+                if(!sector.historial) sector.historial = [];
                 sector.historial.push(movData);
             }
 
@@ -251,6 +303,7 @@
 
         function cerrarSeleccionExtracto() { document.getElementById('modal-seleccion-extracto').classList.add('hidden'); }
 
+        onlongxml
         function abrirHistorialFiltrado(tipo) {
             tipoExtractoActivo = tipo;
             cerrarSeleccionExtracto();
@@ -259,25 +312,27 @@
             document.getElementById('subtitulo-extracto').innerText = `Filtro: ${tipo}`;
             const tbody = document.getElementById('tabla-historial-body');
             tbody.innerHTML = '';
-            sector.historial.forEach((mov, index) => {
-                const movEsEfectivo = mov.tipo.includes("Efectivo");
-                if ((tipo === "Efectivo" && movEsEfectivo) || (tipo === "Continental" && !movEsEfectivo)) {
-                    const esEgreso = mov.tipo.includes("Egreso");
-                    tbody.innerHTML += `
-                        <tr class="border-b border-gray-50">
-                            <td class="p-4 text-[10px] text-gray-400 font-bold">${mov.fecha}</td>
-                            <td class="p-4 font-bold text-gray-700 text-sm">${mov.descripcion}</td>
-                            <td class="p-4 text-right font-black ${esEgreso ? 'text-red-400' : 'text-emerald-500'}">
-                                ${esEgreso ? '-' : '+'} ${formatNumber(mov.monto).replace('-', '')}
-                            </td>
-                            <td class="p-4 text-center space-x-3">
-                                <button onclick="abrirRegistro(${sectorActivoId}, ${index})" class="text-blue-300 hover:text-blue-500"><i class="fas fa-edit"></i></button>
-                                <button onclick="eliminarMovimiento(${sectorActivoId}, ${index})" class="text-red-200 hover:text-red-400"><i class="fas fa-trash"></i></button>
-                            </td>
-                        </tr>
-                    `;
-                }
-            });
+            if(sector.historial) {
+                sector.historial.forEach((mov, index) => {
+                    const movEsEfectivo = mov.tipo.includes("Efectivo");
+                    if ((tipo === "Efectivo" && movEsEfectivo) || (tipo === "Continental" && !movEsEfectivo)) {
+                        const esEgreso = mov.tipo.includes("Egreso");
+                        tbody.innerHTML += `
+                            <tr class="border-b border-gray-50">
+                                <td class="p-4 text-[10px] text-gray-400 font-bold">${mov.fecha}</td>
+                                <td class="p-4 font-bold text-gray-700 text-sm">${mov.descripcion}</td>
+                                <td class="p-4 text-right font-black ${esEgreso ? 'text-red-400' : 'text-emerald-500'}">
+                                    ${esEgreso ? '-' : '+'} ${formatNumber(mov.monto).replace('-', '')}
+                                </td>
+                                <td class="p-4 text-center space-x-3">
+                                    <button onclick="abrirRegistro(${sectorActivoId}, ${index})" class="text-blue-300 hover:text-blue-500"><i class="fas fa-edit"></i></button>
+                                    <button onclick="eliminarMovimiento(${sectorActivoId}, ${index})" class="text-red-200 hover:text-red-400"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                });
+            }
             document.getElementById('modal-extracto').classList.remove('hidden');
         }
 
@@ -299,6 +354,9 @@
         <div>
             <h1 class="text-4xl font-black text-gray-900 tracking-tighter">Control de cuentas</h1>
             <p class="text-gray-400 font-bold text-xs uppercase tracking-widest mt-1">Gestión Financiera</p>
+            <button onclick="abrirNuevoSectorModal()" class="mt-4 inline-flex items-center gap-2 bg-gray-900 text-white text-[11px] font-black uppercase tracking-widest px-5 py-3 rounded-xl shadow-md hover:bg-gray-800 transition active:scale-95">
+                <i class="fas fa-plus"></i> Agregar Sector
+            </button>
         </div>
         <div class="bg-white px-10 py-5 rounded-[24px] shadow-sm border border-gray-100 text-center">
             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Continental</p>
@@ -308,8 +366,26 @@
 
     <main id="contenedor-sectores" class="container mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-12"></main>
 
-    <!-- MODALES (CONFIG, MOVIMIENTO, SELECCIÓN, EXTRACTO) -->
-    <!-- Se mantienen igual que en tu versión original -->
+    <div id="modal-nuevo-sector" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-[70]">
+        <div class="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl relative border border-gray-50">
+            <h3 class="text-2xl font-black mb-8 text-gray-900 tracking-tight text-center">Nuevo Sector</h3>
+            <div class="space-y-8">
+                <div>
+                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-3 tracking-widest">Nombre del Sector</label>
+                    <input type="text" id="nuevo-nombre-sector" placeholder="Ej. Boutique, Surtidor..." class="w-full p-4 rounded-2xl bg-gray-50 border-none font-bold outline-none focus:ring-2 ring-gray-100">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black uppercase text-gray-400 mb-3 tracking-widest text-center">Color Pastel</label>
+                    <div id="grid-colores-nuevo" class="flex flex-wrap justify-center gap-3"></div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-3 mt-10">
+                <button onclick="crearSector()" class="bg-black text-white w-full py-4 rounded-2xl font-black shadow-lg active:scale-95 transition">CREAR SECTOR</button>
+                <button onclick="cerrarNuevoSectorModal()" class="text-gray-400 font-bold text-sm">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="modal-config-sector" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-[70]">
         <div class="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl relative border border-gray-50">
             <h3 class="text-2xl font-black mb-8 text-gray-900 tracking-tight text-center">Configurar</h3>
