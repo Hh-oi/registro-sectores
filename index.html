@@ -7,6 +7,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
+    <!-- Librerías para exportar Excel y PDF (NUEVAS) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- Scripts de Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -65,7 +71,7 @@
             { fondo: 'bg-[#EFEBE9]', numero: 'bg-[#D7CCC8]/40', nombre: 'Arena' },
             { fondo: 'bg-[#F5F5F5]', numero: 'bg-[#E0E0E0]/40', nombre: 'Nube' },
             { fondo: 'bg-[#E8EAF6]', numero: 'bg-[#C5CAE9]/40', nombre: 'Indigo' },
-            { fondo: 'bg-[#E0F7FA]', numero: 'bg-[#B2EBF2]/40', font: 'Cian' }
+            { fondo: 'bg-[#E0F7FA]', numero: 'bg-[#B2EBF2]/40', nombre: 'Cian' }
         ];
 
         function formatNumber(num) {
@@ -197,7 +203,6 @@
             nuevoColorFondo = null;
         }
 
-        // --- Funciones Nuevas para crear Sector ---
         function abrirNuevoSectorModal() {
             document.getElementById('nuevo-nombre-sector').value = "";
             nuevoColorFondo = opcionesColores[0].fondo;
@@ -235,7 +240,7 @@
             }
 
             const nuevoSector = {
-                id: Date.now(), // ID único basado en tiempo
+                id: Date.now(),
                 nombre: nombre,
                 colorFondo: nuevoColorFondo,
                 colorNumero: nuevoColorNumero,
@@ -246,7 +251,6 @@
             await window.subirAFirebase();
             cerrarNuevoSectorModal();
         }
-        // ------------------------------------------
 
         function abrirRegistro(id, index = null) {
             sectorActivoId = id;
@@ -303,7 +307,6 @@
 
         function cerrarSeleccionExtracto() { document.getElementById('modal-seleccion-extracto').classList.add('hidden'); }
 
-        onlongxml
         function abrirHistorialFiltrado(tipo) {
             tipoExtractoActivo = tipo;
             cerrarSeleccionExtracto();
@@ -312,6 +315,7 @@
             document.getElementById('subtitulo-extracto').innerText = `Filtro: ${tipo}`;
             const tbody = document.getElementById('tabla-historial-body');
             tbody.innerHTML = '';
+            
             if(sector.historial) {
                 sector.historial.forEach((mov, index) => {
                     const movEsEfectivo = mov.tipo.includes("Efectivo");
@@ -346,6 +350,102 @@
         }
 
         function cerrarExtracto() { document.getElementById('modal-extracto').classList.add('hidden'); }
+
+        // --- NUEVAS FUNCIONES DE EXPORTACIÓN (EXCEL Y PDF) ---
+        function obtenerDatosFiltrados() {
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
+            if (!sector || !sector.historial) return [];
+            
+            return sector.historial.filter(mov => {
+                const movEsEfectivo = mov.tipo.includes("Efectivo");
+                return (tipoExtractoActivo === "Efectivo" && movEsEfectivo) || 
+                       (tipoExtractoActivo === "Continental" && !movEsEfectivo);
+            });
+        }
+
+        function descargarExcel() {
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
+            const movimientos = obtenerDatosFiltrados();
+            
+            if(movimientos.length === 0) {
+                alert("No hay registros en este historial para exportar.");
+                return;
+            }
+
+            // Mapeamos los datos para que el Excel se lea impecable
+            const filas = movimientos.map(m => {
+                const esEgreso = m.tipo.includes("Egreso");
+                return {
+                    "Fecha": m.fecha,
+                    "Concepto / Descripción": m.descripcion,
+                    "Tipo de Cuenta": m.tipo,
+                    "Monto (Gs)": esEgreso ? -m.monto : m.monto
+                };
+            });
+
+            const hoja = XLSX.utils.json_to_sheet(filas);
+            const libro = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(libro, hoja, "Extracto");
+            
+            // Descargar el documento
+            XLSX.writeFile(libro, `Extracto_${sector.nombre}_${tipoExtractoActivo}.xlsx`);
+        }
+
+        function descargarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
+            const movimientos = obtenerDatosFiltrados();
+
+            if(movimientos.length === 0) {
+                alert("No hay registros en este historial para exportar.");
+                return;
+            }
+
+            // Diseño Estético de la Cabecera del PDF
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(20);
+            doc.text("CONTROL DE CUENTAS", 14, 20);
+            
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Sector: ${sector.nombre.toUpperCase()}`, 14, 28);
+            doc.text(`Tipo de Cuenta: ${tipoExtractoActivo.toUpperCase()}`, 14, 34);
+            doc.text(`Fecha de Exportación: ${new Date().toLocaleDateString('es-PY')}`, 14, 40);
+            
+            // Línea divisoria elegante
+            doc.setDrawColor(200, 200, 200);
+            doc.line(14, 45, 196, 45);
+
+            // Preparación de la Tabla
+            const columnas = ["Fecha", "Concepto / Descripción", "Monto (Gs)"];
+            const filas = movimientos.map(m => {
+                const esEgreso = m.tipo.includes("Egreso");
+                const signo = esEgreso ? "-" : "+";
+                return [
+                    m.fecha,
+                    m.descripcion,
+                    `${signo} ${formatNumber(m.monto)}`
+                ];
+            });
+
+            // Renderizar tabla auto-ajustable con estilos limpios
+            doc.autoTable({
+                head: [columnas],
+                body: filas,
+                startY: 50,
+                theme: 'striped',
+                headStyles: { fillColor: [40, 40, 40], fontStyle: 'bold' },
+                columnStyles: {
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 110 },
+                    2: { halign: 'right', cellWidth: 40 }
+                }
+            });
+
+            doc.save(`Extracto_${sector.nombre}_${tipoExtractoActivo}.pdf`);
+        }
     </script>
 </head>
 <body class="bg-[#F8F9FA] p-4 md:p-8 font-sans">
@@ -366,6 +466,7 @@
 
     <main id="contenedor-sectores" class="container mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-12"></main>
 
+    <!-- MODAL PARA NUEVO SECTOR -->
     <div id="modal-nuevo-sector" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-[70]">
         <div class="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl relative border border-gray-50">
             <h3 class="text-2xl font-black mb-8 text-gray-900 tracking-tight text-center">Nuevo Sector</h3>
@@ -386,6 +487,7 @@
         </div>
     </div>
 
+    <!-- MODAL CONFIG SECTOR EXISTENTE -->
     <div id="modal-config-sector" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-[70]">
         <div class="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl relative border border-gray-50">
             <h3 class="text-2xl font-black mb-8 text-gray-900 tracking-tight text-center">Configurar</h3>
@@ -409,6 +511,7 @@
         </div>
     </div>
 
+    <!-- MODAL MOVIMIENTO -->
     <div id="modal-movimiento" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-50">
         <div id="cuerpo-modal-movimiento" class="rounded-[40px] p-10 w-full max-w-md shadow-2xl relative border border-white">
             <h2 id="titulo-sector-modal" class="text-3xl font-black text-center mb-8 tracking-tighter">Sector</h2>
@@ -438,6 +541,7 @@
         </div>
     </div>
 
+    <!-- MODAL SELECCIÓN EXTRACTO -->
     <div id="modal-seleccion-extracto" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl text-center">
             <h2 class="text-xl font-black mb-8 text-gray-800 tracking-tight">Selecciona historial:</h2>
@@ -449,12 +553,23 @@
         </div>
     </div>
 
+    <!-- MODAL DETALLE EXTRACTO (ACTUALIZADO CON BOTONES DE EXPORTAR) -->
     <div id="modal-extracto" class="fixed inset-0 bg-black/50 backdrop-blur-lg hidden flex items-center justify-center p-4 z-[60]">
         <div class="bg-white rounded-[40px] p-8 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl border border-gray-100">
             <div class="flex justify-between items-center mb-8">
                 <div>
                     <h2 id="titulo-extracto" class="text-2xl font-black text-gray-900 tracking-tighter">Historial</h2>
                     <p id="subtitulo-extracto" class="text-[10px] text-gray-400 font-black uppercase tracking-widest"></p>
+                    
+                    <!-- Botones Modernos de Descarga -->
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="descargarExcel()" class="bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-emerald-100 transition flex items-center gap-1">
+                            <i class="fas fa-file-excel"></i> Descargar Excel
+                        </button>
+                        <button onclick="descargarPDF()" class="bg-red-50 text-red-700 text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-red-100 transition flex items-center gap-1">
+                            <i class="fas fa-file-pdf"></i> Descargar PDF
+                        </button>
+                    </div>
                 </div>
                 <button onclick="cerrarExtracto()" class="bg-gray-50 w-12 h-12 rounded-full flex items-center justify-center text-2xl hover:bg-red-50 hover:text-red-500 transition shadow-sm">&times;</button>
             </div>
