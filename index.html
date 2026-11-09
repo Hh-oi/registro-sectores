@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
-    <!-- Librerías para exportar Excel y PDF -->
+    <!-- Librerías para exportar Excel y PDF (NUEVAS) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
@@ -35,10 +35,6 @@
                 if (snapshot.exists()) {
                     window.datosSectores = snapshot.data().sectores || [];
                     renderizarSectores();
-                    // Si el extracto está abierto, refrescar su contenido visual también
-                    if(!document.getElementById('modal-extracto').classList.contains('hidden')) {
-                        abrirHistorialFiltrado(tipoExtractoActivo, true);
-                    }
                 } else {
                     window.datosSectores = [];
                     renderizarSectores();
@@ -62,7 +58,6 @@
         let sectorActivoId = null;
         let tipoExtractoActivo = null;
         let editandoIndex = null;
-        let funcionConfirmarAccion = null;
 
         const opcionesColores = [
             { fondo: 'bg-[#E7F5E9]', numero: 'bg-[#C8E6C9]/40', nombre: 'Menta' },
@@ -89,30 +84,6 @@
         function formatearInput(input) {
             let val = input.value.replace(/\D/g, "");
             input.value = val ? val.replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
-        }
-
-        function verificarEnter(event) {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                guardarMovimiento();
-            }
-        }
-
-        // Alerta elegante personalizada que reemplaza al confirm() nativo
-        function mostrarConfirmacionElegante(mensaje, accion) {
-            document.getElementById('texto-confirmacion-modal').innerText = mensaje;
-            funcionConfirmarAccion = accion;
-            document.getElementById('modal-confirmacion-elegante').classList.remove('hidden');
-        }
-
-        function cerrarConfirmacionElegante() {
-            document.getElementById('modal-confirmacion-elegante').classList.add('hidden');
-            funcionConfirmarAccion = null;
-        }
-
-        function ejecutarAccionConfirmada() {
-            if(funcionConfirmarAccion) funcionConfirmarAccion();
-            cerrarConfirmacionElegante();
         }
 
         function calcularSaldo(sectorId, tipo) {
@@ -215,18 +186,16 @@
                 sector.colorFondo = nuevoColorFondo;
                 sector.colorNumero = nuevoColorNumero;
             }
-            renderizarSectores(); // Instantáneo
+            await window.subirAFirebase();
             cerrarConfigSector();
-            window.subirAFirebase(); // Segundo plano
         }
 
-        function eliminarSector() {
-            mostrarConfirmacionElegante("¿Segura que deseas eliminar este sector por completo?", async () => {
+        async function eliminarSector() {
+            if(confirm("¿Segura que deseas eliminar este sector?")) {
                 window.datosSectores = window.datosSectores.filter(s => s.id !== sectorActivoId);
-                renderizarSectores(); // Instantáneo
+                await window.subirAFirebase();
                 cerrarConfigSector();
-                window.subirAFirebase(); // Segundo plano
-            });
+            }
         }
 
         function cerrarConfigSector() {
@@ -265,7 +234,10 @@
 
         async function crearSector() {
             const nombre = document.getElementById('nuevo-nombre-sector').value.trim();
-            if(!nombre) return;
+            if(!nombre) {
+                alert("Por favor, ingresa un nombre para el sector.");
+                return;
+            }
 
             const nuevoSector = {
                 id: Date.now(),
@@ -276,9 +248,8 @@
             };
 
             window.datosSectores.push(nuevoSector);
-            renderizarSectores(); // Instantáneo
+            await window.subirAFirebase();
             cerrarNuevoSectorModal();
-            window.subirAFirebase(); // Segundo plano
         }
 
         function abrirRegistro(id, index = null) {
@@ -297,8 +268,6 @@
             }
             document.getElementById('cuerpo-modal-movimiento').className = `rounded-[40px] p-10 w-full max-w-md shadow-2xl relative border border-white ${sector.colorFondo}`;
             document.getElementById('modal-movimiento').classList.remove('hidden');
-            
-            setTimeout(() => document.getElementById('monto-movimiento').focus(), 100);
         }
 
         function cerrarModalMovimiento() { document.getElementById('modal-movimiento').classList.add('hidden'); }
@@ -324,15 +293,11 @@
                 sector.historial.push(movData);
             }
 
-            // Renderizado veloz e instantáneo local
-            renderizarSectores();
+            await window.subirAFirebase();
             cerrarModalMovimiento();
             if(!document.getElementById('modal-extracto').classList.contains('hidden')) {
-                abrirHistorialFiltrado(tipoExtractoActivo, false);
+                abrirHistorialFiltrado(tipoExtractoActivo);
             }
-
-            // Sincroniza en background sin trabar la interfaz
-            window.subirAFirebase();
         }
 
         function prepararExtracto(id) {
@@ -342,13 +307,10 @@
 
         function cerrarSeleccionExtracto() { document.getElementById('modal-seleccion-extracto').classList.add('hidden'); }
 
-        function abrirHistorialFiltrado(tipo, desdeSnapshot = false) {
+        function abrirHistorialFiltrado(tipo) {
             tipoExtractoActivo = tipo;
-            if(!desdeSnapshot) cerrarSeleccionExtracto();
-            
+            cerrarSeleccionExtracto();
             const sector = window.datosSectores.find(s => s.id === sectorActivoId);
-            if(!sector) return;
-            
             document.getElementById('titulo-extracto').innerText = `Extracto - ${sector.nombre}`;
             document.getElementById('subtitulo-extracto').innerText = `Filtro: ${tipo}`;
             const tbody = document.getElementById('tabla-historial-body');
@@ -378,21 +340,18 @@
             document.getElementById('modal-extracto').classList.remove('hidden');
         }
 
-        function eliminarMovimiento(sectorId, index) {
-            // Confirmación suave, rápida y muy estética
-            mostrarConfirmacionElegante("¿Deseas eliminar este registro?", async () => {
+        async function eliminarMovimiento(sectorId, index) {
+            if(confirm("¿Eliminar este registro?")) {
                 const sector = window.datosSectores.find(s => s.id === sectorId);
                 sector.historial.splice(index, 1);
-                
-                renderizarSectores(); // Refresco inmediato
-                abrirHistorialFiltrado(tipoExtractoActivo, false);
-                window.subirAFirebase(); // Guardado de fondo
-            });
+                await window.subirAFirebase();
+                abrirHistorialFiltrado(tipoExtractoActivo);
+            }
         }
 
         function cerrarExtracto() { document.getElementById('modal-extracto').classList.add('hidden'); }
 
-        // --- FUNCIONES DE EXPORTACIÓN (EXCEL Y PDF) ---
+        // --- NUEVAS FUNCIONES DE EXPORTACIÓN (EXCEL Y PDF) ---
         function obtenerDatosFiltrados() {
             const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             if (!sector || !sector.historial) return [];
@@ -407,8 +366,13 @@
         function descargarExcel() {
             const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             const movimientos = obtenerDatosFiltrados();
-            if(movimientos.length === 0) return;
+            
+            if(movimientos.length === 0) {
+                alert("No hay registros en este historial para exportar.");
+                return;
+            }
 
+            // Mapeamos los datos para que el Excel se lea impecable
             const filas = movimientos.map(m => {
                 const esEgreso = m.tipo.includes("Egreso");
                 return {
@@ -422,6 +386,8 @@
             const hoja = XLSX.utils.json_to_sheet(filas);
             const libro = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(libro, hoja, "Extracto");
+            
+            // Descargar el documento
             XLSX.writeFile(libro, `Extracto_${sector.nombre}_${tipoExtractoActivo}.xlsx`);
         }
 
@@ -431,8 +397,13 @@
             
             const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             const movimientos = obtenerDatosFiltrados();
-            if(movimientos.length === 0) return;
 
+            if(movimientos.length === 0) {
+                alert("No hay registros en este historial para exportar.");
+                return;
+            }
+
+            // Diseño Estético de la Cabecera del PDF
             doc.setFont("helvetica", "bold");
             doc.setFontSize(20);
             doc.text("CONTROL DE CUENTAS", 14, 20);
@@ -443,9 +414,11 @@
             doc.text(`Tipo de Cuenta: ${tipoExtractoActivo.toUpperCase()}`, 14, 34);
             doc.text(`Fecha de Exportación: ${new Date().toLocaleDateString('es-PY')}`, 14, 40);
             
+            // Línea divisoria elegante
             doc.setDrawColor(200, 200, 200);
             doc.line(14, 45, 196, 45);
 
+            // Preparación de la Tabla
             const columnas = ["Fecha", "Concepto / Descripción", "Monto (Gs)"];
             const filas = movimientos.map(m => {
                 const esEgreso = m.tipo.includes("Egreso");
@@ -457,6 +430,7 @@
                 ];
             });
 
+            // Renderizar tabla auto-ajustable con estilos limpios
             doc.autoTable({
                 head: [columnas],
                 body: filas,
@@ -474,7 +448,7 @@
         }
     </script>
 </head>
-<body class="bg-[#F8F9FA] p-4 md:p-8 font-sans select-none">
+<body class="bg-[#F8F9FA] p-4 md:p-8 font-sans">
 
     <header class="container mx-auto flex flex-col md:flex-row justify-between items-center mb-12 gap-4">
         <div>
@@ -491,20 +465,6 @@
     </header>
 
     <main id="contenedor-sectores" class="container mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-12"></main>
-
-    <!-- NOUVEAU MODAL DE CONFIRMACIÓN ELEGANTE (REEMPLAZA AL DE LA IMAGEN) -->
-    <div id="modal-confirmacion-elegante" class="fixed inset-0 bg-black/40 backdrop-blur-md hidden flex items-center justify-center p-4 z-[999] transition-all">
-        <div class="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl border border-gray-100 text-center">
-            <div class="w-12 h-12 bg-red-50 text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 text-xl">
-                <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <h3 id="texto-confirmacion-modal" class="text-lg font-bold text-gray-800 mb-6 px-2">¿Estás segura?</h3>
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="cerrarConfirmacionElegante()" class="bg-gray-100 text-gray-500 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-gray-200 transition">Cancelar</button>
-                <button onclick="ejecutarAccionConfirmada()" class="bg-black text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-md active:scale-95 transition">Aceptar</button>
-            </div>
-        </div>
-    </div>
 
     <!-- MODAL PARA NUEVO SECTOR -->
     <div id="modal-nuevo-sector" class="fixed inset-0 bg-black/30 backdrop-blur-md hidden flex items-center justify-center p-4 z-[70]">
@@ -567,11 +527,11 @@
                 </div>
                 <div>
                     <label class="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Monto (Gs)</label>
-                    <input type="text" id="monto-movimiento" oninput="formatearInput(this)" onkeydown="verificarEnter(event)" placeholder="0" class="w-full p-4 rounded-2xl bg-white/50 text-2xl font-black outline-none border-none">
+                    <input type="text" id="monto-movimiento" oninput="formatearInput(this)" placeholder="0" class="w-full p-4 rounded-2xl bg-white/50 text-2xl font-black outline-none border-none">
                 </div>
                 <div>
                     <label class="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Concepto</label>
-                    <input type="text" id="desc-movimiento" onkeydown="verificarEnter(event)" placeholder="..." class="w-full p-4 rounded-2xl bg-white/50 text-lg font-bold outline-none border-none">
+                    <input type="text" id="desc-movimiento" placeholder="..." class="w-full p-4 rounded-2xl bg-white/50 text-lg font-bold outline-none border-none">
                 </div>
             </div>
             <div class="flex flex-col gap-3 mt-10">
@@ -593,7 +553,7 @@
         </div>
     </div>
 
-    <!-- MODAL DETALLE EXTRACTO -->
+    <!-- MODAL DETALLE EXTRACTO (ACTUALIZADO CON BOTONES DE EXPORTAR) -->
     <div id="modal-extracto" class="fixed inset-0 bg-black/50 backdrop-blur-lg hidden flex items-center justify-center p-4 z-[60]">
         <div class="bg-white rounded-[40px] p-8 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl border border-gray-100">
             <div class="flex justify-between items-center mb-8">
@@ -601,6 +561,7 @@
                     <h2 id="titulo-extracto" class="text-2xl font-black text-gray-900 tracking-tighter">Historial</h2>
                     <p id="subtitulo-extracto" class="text-[10px] text-gray-400 font-black uppercase tracking-widest"></p>
                     
+                    <!-- Botones Modernos de Descarga -->
                     <div class="flex gap-2 mt-3">
                         <button onclick="descargarExcel()" class="bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-emerald-100 transition flex items-center gap-1">
                             <i class="fas fa-file-excel"></i> Descargar Excel
