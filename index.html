@@ -31,41 +31,38 @@
         const sectoresColRef = collection(db, "sectores_v2");
 
         window.db = db;
-        window.sectoresColRef = sectoresColRef;
 
-        // Escuchar sectores en tiempo real
-        async function iniciarApp() {
+        // Escuchar sectores e historiales sin bloqueos de rendimiento
+        function iniciarApp() {
             onSnapshot(sectoresColRef, async (snapshot) => {
-                const sectores = [];
-                for (const docSnap of snapshot.docs) {
+                const promesas = snapshot.docs.map(async (docSnap) => {
                     const secData = { id: docSnap.id, ...docSnap.data() };
-                    // Cargar subcolección de movimientos para cada sector
                     const movsCol = collection(db, "sectores_v2", docSnap.id, "movimientos");
                     const movsSnap = await getDocs(movsCol);
                     secData.historial = [];
                     movsSnap.forEach(mDoc => {
                         secData.historial.push({ movId: mDoc.id, ...mDoc.data() });
                     });
-                    // Ordenar por fecha/tiempo
                     secData.historial.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                    sectores.push(secData);
-                }
-                window.datosSectores = sectores;
+                    return secData;
+                });
+
+                window.datosSectores = await Promise.all(promesas);
                 renderizarSectores();
-                if(!document.getElementById('modal-extracto').classList.contains('hidden')) {
-                    abrirHistorialFiltrado(tipoExtractoActivo, true);
+                
+                // Mantener el extracto abierto si el usuario ya estaba mirando uno
+                if(!document.getElementById('modal-extracto').classList.contains('hidden') && window.tipoExtractoActivo) {
+                    abrirHistorialFiltrado(window.tipoExtractoActivo, true);
                 }
             });
         }
 
-        // Guardar nuevo movimiento como documento individual (Cero límite de tamaño)
         async function agregarMovimientoFirebase(sectorId, movData) {
             try {
                 const movsCol = collection(db, "sectores_v2", String(sectorId), "movimientos");
                 await addDoc(movsCol, movData);
             } catch(e) {
                 console.error("Error al ingresar movimiento:", e);
-                alert("Error al ingresar: " + e.message);
             }
         }
 
@@ -120,7 +117,7 @@
 
     <script>
         let sectorActivoId = null;
-        let tipoExtractoActivo = null;
+        window.tipoExtractoActivo = null;
         let editandoMovId = null;
         let funcionConfirmarAccion = null;
 
@@ -242,6 +239,7 @@
         function abrirConfigSector(id) {
             sectorActivoId = id;
             const sector = window.datosSectores.find(s => String(s.id) === String(id));
+            if(!sector) return;
             document.getElementById('edit-nombre-sector').value = sector.nombre;
             const gridColores = document.getElementById('grid-colores');
             gridColores.innerHTML = '';
@@ -269,6 +267,7 @@
 
         async function guardarCambiosSector() {
             const sector = window.datosSectores.find(s => String(s.id) === String(sectorActivoId));
+            if(!sector) return;
             sector.nombre = document.getElementById('edit-nombre-sector').value;
             if(nuevoColorFondo) {
                 sector.colorFondo = nuevoColorFondo;
@@ -345,6 +344,8 @@
             sectorActivoId = id;
             editandoMovId = movId;
             const sector = window.datosSectores.find(s => String(s.id) === String(id));
+            if(!sector) return;
+
             document.getElementById('titulo-sector-modal').innerText = sector.nombre;
             
             if(movId) {
@@ -369,10 +370,8 @@
         async function guardarMovimiento() {
             const montoInput = document.getElementById('monto-movimiento').value;
             const monto = parseInt(montoInput.replace(/\./g, "")) || 0;
-            if(monto <= 0) {
-                alert("Por favor ingresa un monto válido.");
-                return;
-            }
+            if(monto <= 0) return;
+
             const tipo = document.getElementById('tipo-movimiento').value;
             const desc = document.getElementById('desc-movimiento').value || "Sin descripción";
             const sector = window.datosSectores.find(s => String(s.id) === String(sectorActivoId));
@@ -388,20 +387,18 @@
             cerrarModalMovimiento();
 
             if (editandoMovId) {
-                // Actualizar movimiento existente
                 const index = sector.historial.findIndex(m => m.movId === editandoMovId);
                 if(index !== -1) sector.historial[index] = { movId: editandoMovId, ...movData };
                 renderizarSectores();
                 window.actualizarMovimientoFirebase(sectorActivoId, editandoMovId, movData);
             } else {
-                // Agregar nuevo movimiento
                 sector.historial.unshift(movData);
                 renderizarSectores();
                 window.agregarMovimientoFirebase(sectorActivoId, movData);
             }
 
             if(!document.getElementById('modal-extracto').classList.contains('hidden')) {
-                abrirHistorialFiltrado(tipoExtractoActivo, false);
+                abrirHistorialFiltrado(window.tipoExtractoActivo, false);
             }
         }
 
@@ -413,7 +410,7 @@
         function cerrarSeleccionExtracto() { document.getElementById('modal-seleccion-extracto').classList.add('hidden'); }
 
         function abrirHistorialFiltrado(tipo, desdeSnapshot = false) {
-            tipoExtractoActivo = tipo;
+            window.tipoExtractoActivo = tipo;
             if(!desdeSnapshot) cerrarSeleccionExtracto();
             
             const sector = (window.datosSectores || []).find(s => String(s.id) === String(sectorActivoId));
@@ -424,7 +421,7 @@
             const tbody = document.getElementById('tabla-historial-body');
             tbody.innerHTML = '';
             
-            if(sector.historial) {
+            if(sector.historial && sector.historial.length > 0) {
                 sector.historial.forEach((mov) => {
                     const movEsEfectivo = mov.tipo.includes("Efectivo");
                     if ((tipo === "Efectivo" && movEsEfectivo) || (tipo === "Continental" && !movEsEfectivo)) {
@@ -444,32 +441,36 @@
                         `;
                     }
                 });
+            } else {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-400 text-xs font-bold">No hay registros en este historial yet</td></tr>`;
             }
+
             document.getElementById('modal-extracto').classList.remove('hidden');
         }
 
         function eliminarMovimiento(sectorId, movId) {
             mostrarConfirmacionElegante("¿Deseas eliminar este registro?", async () => {
                 const sector = window.datosSectores.find(s => String(s.id) === String(sectorId));
-                sector.historial = sector.historial.filter(m => m.movId !== movId);
-                
-                renderizarSectores();
-                abrirHistorialFiltrado(tipoExtractoActivo, false);
-                window.eliminarMovimientoFirebase(sectorId, movId);
+                if(sector) {
+                    sector.historial = sector.historial.filter(m => m.movId !== movId);
+                    renderizarSectores();
+                    abrirHistorialFiltrado(window.tipoExtractoActivo, false);
+                    window.eliminarMovimientoFirebase(sectorId, movId);
+                }
             });
         }
 
         function cerrarExtracto() { document.getElementById('modal-extracto').classList.add('hidden'); }
 
-        // --- EXPORTACIÓN A EXCEL Y PDF ---
+        // EXPORTAR A EXCEL Y PDF
         function obtenerDatosFiltrados() {
             const sector = window.datosSectores.find(s => String(s.id) === String(sectorActivoId));
             if (!sector || !sector.historial) return [];
             
             return sector.historial.filter(mov => {
                 const movEsEfectivo = mov.tipo.includes("Efectivo");
-                return (tipoExtractoActivo === "Efectivo" && movEsEfectivo) || 
-                       (tipoExtractoActivo === "Continental" && !movEsEfectivo);
+                return (window.tipoExtractoActivo === "Efectivo" && movEsEfectivo) || 
+                       (window.tipoExtractoActivo === "Continental" && !movEsEfectivo);
             });
         }
 
@@ -491,7 +492,7 @@
             const hoja = XLSX.utils.json_to_sheet(filas);
             const libro = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(libro, hoja, "Extracto");
-            XLSX.writeFile(libro, `Extracto_${sector.nombre}_${tipoExtractoActivo}.xlsx`);
+            XLSX.writeFile(libro, `Extracto_${sector.nombre}_${window.tipoExtractoActivo}.xlsx`);
         }
 
         function descargarPDF() {
@@ -509,7 +510,7 @@
             doc.setFontSize(10);
             doc.setFont("helvetica", "normal");
             doc.text(`Sector: ${sector.nombre.toUpperCase()}`, 14, 28);
-            doc.text(`Tipo de Cuenta: ${tipoExtractoActivo.toUpperCase()}`, 14, 34);
+            doc.text(`Tipo de Cuenta: ${window.tipoExtractoActivo.toUpperCase()}`, 14, 34);
             doc.text(`Fecha de Exportación: ${new Date().toLocaleDateString('es-PY')}`, 14, 40);
             
             doc.setDrawColor(200, 200, 200);
@@ -539,7 +540,7 @@
                 }
             });
 
-            doc.save(`Extracto_${sector.nombre}_${tipoExtractoActivo}.pdf`);
+            doc.save(`Extracto_${sector.nombre}_${window.tipoExtractoActivo}.pdf`);
         }
     </script>
 </head>
