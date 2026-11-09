@@ -6,11 +6,6 @@
     <title>Control de cuentas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
-    <!-- Librerías para exportar Excel y PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
 
     <!-- Scripts de Firebase -->
     <script type="module">
@@ -352,14 +347,14 @@
             document.getElementById('titulo-extracto').innerText = `Extracto - ${sector.nombre}`;
             document.getElementById('subtitulo-extracto').innerText = `Filtro: ${tipo}`;
             const tbody = document.getElementById('tabla-historial-body');
-            tbody.innerHTML = '';
             
+            let htmlFilas = '';
             if(sector.historial && sector.historial.length > 0) {
                 sector.historial.forEach((mov, index) => {
                     const movEsEfectivo = mov.tipo.includes("Efectivo");
                     if ((tipo === "Efectivo" && movEsEfectivo) || (tipo === "Continental" && !movEsEfectivo)) {
                         const esEgreso = mov.tipo.includes("Egreso");
-                        tbody.innerHTML += `
+                        htmlFilas += `
                             <tr class="border-b border-gray-50">
                                 <td class="p-4 text-[10px] text-gray-400 font-bold">${mov.fecha}</td>
                                 <td class="p-4 font-bold text-gray-700 text-sm">${mov.descripcion}</td>
@@ -374,9 +369,9 @@
                         `;
                     }
                 });
-            } else {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-400 text-xs font-bold">No hay registros en este historial</td></tr>`;
             }
+
+            tbody.innerHTML = htmlFilas || `<tr><td colspan="4" class="p-6 text-center text-gray-400 text-xs font-bold">No hay registros en este historial</td></tr>`;
             document.getElementById('modal-extracto').classList.remove('hidden');
         }
 
@@ -393,87 +388,6 @@
         }
 
         function cerrarExtracto() { document.getElementById('modal-extracto').classList.add('hidden'); }
-
-        // EXPORTACIÓN A EXCEL Y PDF
-        function obtenerDatosFiltrados() {
-            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
-            if (!sector || !sector.historial) return [];
-            
-            return sector.historial.filter(mov => {
-                const movEsEfectivo = mov.tipo.includes("Efectivo");
-                return (window.tipoExtractoActivo === "Efectivo" && movEsEfectivo) || 
-                       (window.tipoExtractoActivo === "Continental" && !movEsEfectivo);
-            });
-        }
-
-        function descargarExcel() {
-            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
-            const movimientos = obtenerDatosFiltrados();
-            if(movimientos.length === 0) return;
-
-            const filas = movimientos.map(m => {
-                const esEgreso = m.tipo.includes("Egreso");
-                return {
-                    "Fecha": m.fecha,
-                    "Concepto / Descripción": m.descripcion,
-                    "Tipo de Cuenta": m.tipo,
-                    "Monto (Gs)": esEgreso ? -m.monto : m.monto
-                };
-            });
-
-            const hoja = XLSX.utils.json_to_sheet(filas);
-            const libro = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(libro, hoja, "Extracto");
-            XLSX.writeFile(libro, `Extracto_${sector.nombre}_${window.tipoExtractoActivo}.xlsx`);
-        }
-
-        function descargarPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            
-            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
-            const movimientos = obtenerDatosFiltrados();
-            if(movimientos.length === 0) return;
-
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(20);
-            doc.text("CONTROL DE CUENTAS", 14, 20);
-            
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            doc.text(`Sector: ${sector.nombre.toUpperCase()}`, 14, 28);
-            doc.text(`Tipo de Cuenta: ${window.tipoExtractoActivo.toUpperCase()}`, 14, 34);
-            doc.text(`Fecha de Exportación: ${new Date().toLocaleDateString('es-PY')}`, 14, 40);
-            
-            doc.setDrawColor(200, 200, 200);
-            doc.line(14, 45, 196, 45);
-
-            const columnas = ["Fecha", "Concepto / Descripción", "Monto (Gs)"];
-            const filas = movimientos.map(m => {
-                const esEgreso = m.tipo.includes("Egreso");
-                const signo = esEgreso ? "-" : "+";
-                return [
-                    m.fecha,
-                    m.descripcion,
-                    `${signo} ${formatNumber(m.monto)}`
-                ];
-            });
-
-            doc.autoTable({
-                head: [columnas],
-                body: filas,
-                startY: 50,
-                theme: 'striped',
-                headStyles: { fillColor: [40, 40, 40], fontStyle: 'bold' },
-                columnStyles: {
-                    0: { cellWidth: 30 },
-                    1: { cellWidth: 110 },
-                    2: { halign: 'right', cellWidth: 40 }
-                }
-            });
-
-            doc.save(`Extracto_${sector.nombre}_${window.tipoExtractoActivo}.pdf`);
-        }
     </script>
 </head>
 <body class="bg-[#F8F9FA] p-4 md:p-8 font-sans select-none">
@@ -602,15 +516,6 @@
                 <div>
                     <h2 id="titulo-extracto" class="text-2xl font-black text-gray-900 tracking-tighter">Historial</h2>
                     <p id="subtitulo-extracto" class="text-[10px] text-gray-400 font-black uppercase tracking-widest"></p>
-                    
-                    <div class="flex gap-2 mt-3">
-                        <button onclick="descargarExcel()" class="bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-emerald-100 transition flex items-center gap-1">
-                            <i class="fas fa-file-excel"></i> Descargar Excel
-                        </button>
-                        <button onclick="descargarPDF()" class="bg-red-50 text-red-700 text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-red-100 transition flex items-center gap-1">
-                            <i class="fas fa-file-pdf"></i> Descargar PDF
-                        </button>
-                    </div>
                 </div>
                 <button onclick="cerrarExtracto()" class="bg-gray-50 w-12 h-12 rounded-full flex items-center justify-center text-2xl hover:bg-red-50 hover:text-red-500 transition shadow-sm">&times;</button>
             </div>
