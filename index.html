@@ -12,10 +12,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
 
-    <!-- Firebase V9 Modular -->
+    <!-- Scripts de Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot, getDocs, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDP4o3pzYG_OpZNqi3o96sUkw2AwkIUOMU",
@@ -28,97 +28,39 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const sectoresColRef = collection(db, "sectores_v2");
+        const docRef = doc(db, "gestion", "cuentas");
 
-        window.db = db;
-
-        // Escuchar sectores e historiales sin bloqueos de rendimiento
-        function iniciarApp() {
-            onSnapshot(sectoresColRef, async (snapshot) => {
-                const promesas = snapshot.docs.map(async (docSnap) => {
-                    const secData = { id: docSnap.id, ...docSnap.data() };
-                    const movsCol = collection(db, "sectores_v2", docSnap.id, "movimientos");
-                    const movsSnap = await getDocs(movsCol);
-                    secData.historial = [];
-                    movsSnap.forEach(mDoc => {
-                        secData.historial.push({ movId: mDoc.id, ...mDoc.data() });
-                    });
-                    secData.historial.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                    return secData;
-                });
-
-                window.datosSectores = await Promise.all(promesas);
-                renderizarSectores();
-                
-                // Mantener el extracto abierto si el usuario ya estaba mirando uno
-                if(!document.getElementById('modal-extracto').classList.contains('hidden') && window.tipoExtractoActivo) {
-                    abrirHistorialFiltrado(window.tipoExtractoActivo, true);
+        async function iniciarApp() {
+            onSnapshot(docRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    window.datosSectores = snapshot.data().sectores || [];
+                    renderizarSectores();
+                    if(!document.getElementById('modal-extracto').classList.contains('hidden') && window.tipoExtractoActivo) {
+                        abrirHistorialFiltrado(window.tipoExtractoActivo, true);
+                    }
+                } else {
+                    window.datosSectores = [];
+                    renderizarSectores();
                 }
             });
         }
 
-        async function agregarMovimientoFirebase(sectorId, movData) {
+        async function subirAFirebase() {
             try {
-                const movsCol = collection(db, "sectores_v2", String(sectorId), "movimientos");
-                await addDoc(movsCol, movData);
-            } catch(e) {
-                console.error("Error al ingresar movimiento:", e);
+                await setDoc(docRef, { sectores: window.datosSectores });
+            } catch (e) {
+                console.error("Error al sincronizar:", e);
             }
         }
 
-        async function actualizarMovimientoFirebase(sectorId, movId, movData) {
-            try {
-                const movRef = doc(db, "sectores_v2", String(sectorId), "movimientos", String(movId));
-                await updateDoc(movRef, movData);
-            } catch(e) {
-                console.error("Error al actualizar movimiento:", e);
-            }
-        }
-
-        async function eliminarMovimientoFirebase(sectorId, movId) {
-            try {
-                const movRef = doc(db, "sectores_v2", String(sectorId), "movimientos", String(movId));
-                await deleteDoc(movRef);
-            } catch(e) {
-                console.error("Error al eliminar movimiento:", e);
-            }
-        }
-
-        async function guardarSectorHeader(sector) {
-            try {
-                const secRef = doc(db, "sectores_v2", String(sector.id));
-                await setDoc(secRef, {
-                    nombre: sector.nombre,
-                    colorFondo: sector.colorFondo,
-                    colorNumero: sector.colorNumero
-                }, { merge: true });
-            } catch(e) {
-                console.error("Error sector:", e);
-            }
-        }
-
-        async function borrarSectorCompleto(sectorId) {
-            try {
-                const secRef = doc(db, "sectores_v2", String(sectorId));
-                await deleteDoc(secRef);
-            } catch(e) {
-                console.error("Error al borrar sector:", e);
-            }
-        }
-
-        window.agregarMovimientoFirebase = agregarMovimientoFirebase;
-        window.actualizarMovimientoFirebase = actualizarMovimientoFirebase;
-        window.eliminarMovimientoFirebase = eliminarMovimientoFirebase;
-        window.guardarSectorHeader = guardarSectorHeader;
-        window.borrarSectorCompleto = borrarSectorCompleto;
-
+        window.subirAFirebase = subirAFirebase;
         iniciarApp();
     </script>
 
     <script>
         let sectorActivoId = null;
         window.tipoExtractoActivo = null;
-        let editandoMovId = null;
+        let editandoIndex = null;
         let funcionConfirmarAccion = null;
 
         const opcionesColores = [
@@ -172,7 +114,7 @@
         }
 
         function calcularSaldo(sectorId, tipo) {
-            const sector = (window.datosSectores || []).find(s => String(s.id) === String(sectorId));
+            const sector = (window.datosSectores || []).find(s => s.id === sectorId);
             if(!sector || !sector.historial) return 0;
             return sector.historial.reduce((acc, mov) => {
                 const esEfectivo = mov.tipo.includes("Efectivo");
@@ -201,7 +143,7 @@
                     <div class="${sector.colorFondo} rounded-[32px] p-8 shadow-sm relative border border-white/50 transition-all hover:shadow-md">
                         <div class="flex justify-between items-start mb-6">
                             <h2 class="text-2xl font-black text-gray-800 tracking-tight">${sector.nombre}</h2>
-                            <button onclick="abrirConfigSector('${sector.id}')" class="text-gray-400 hover:text-gray-600 p-2">
+                            <button onclick="abrirConfigSector(${sector.id})" class="text-gray-400 hover:text-gray-600 p-2">
                                 <i class="fas fa-cog text-lg"></i>
                             </button>
                         </div>
@@ -222,8 +164,8 @@
                             </div>
                         </div>
                         <div class="mt-8 flex justify-between items-center">
-                            <button onclick="prepararExtracto('${sector.id}')" class="text-[9px] font-black bg-white/40 hover:bg-white/60 px-4 py-2 rounded-xl uppercase tracking-widest transition">Historial</button>
-                            <button onclick="abrirRegistro('${sector.id}')" class="text-gray-800 hover:scale-110 transition active:scale-95">
+                            <button onclick="prepararExtracto(${sector.id})" class="text-[9px] font-black bg-white/40 hover:bg-white/60 px-4 py-2 rounded-xl uppercase tracking-widest transition">Historial</button>
+                            <button onclick="abrirRegistro(${sector.id})" class="text-gray-800 hover:scale-110 transition active:scale-95">
                                 <i class="fas fa-plus-circle text-4xl"></i>
                             </button>
                         </div>
@@ -238,7 +180,7 @@
 
         function abrirConfigSector(id) {
             sectorActivoId = id;
-            const sector = window.datosSectores.find(s => String(s.id) === String(id));
+            const sector = window.datosSectores.find(s => s.id === id);
             if(!sector) return;
             document.getElementById('edit-nombre-sector').value = sector.nombre;
             const gridColores = document.getElementById('grid-colores');
@@ -266,7 +208,7 @@
         }
 
         async function guardarCambiosSector() {
-            const sector = window.datosSectores.find(s => String(s.id) === String(sectorActivoId));
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             if(!sector) return;
             sector.nombre = document.getElementById('edit-nombre-sector').value;
             if(nuevoColorFondo) {
@@ -275,16 +217,15 @@
             }
             renderizarSectores();
             cerrarConfigSector();
-            window.guardarSectorHeader(sector);
+            window.subirAFirebase();
         }
 
         function eliminarSector() {
             mostrarConfirmacionElegante("¿Segura que deseas eliminar este sector por completo?", async () => {
-                const idAEliminar = sectorActivoId;
-                window.datosSectores = window.datosSectores.filter(s => String(s.id) !== String(idAEliminar));
+                window.datosSectores = window.datosSectores.filter(s => s.id !== sectorActivoId);
                 renderizarSectores();
                 cerrarConfigSector();
-                window.borrarSectorCompleto(idAEliminar);
+                window.subirAFirebase();
             });
         }
 
@@ -327,7 +268,7 @@
             if(!nombre) return;
 
             const nuevoSector = {
-                id: "sec_" + Date.now(),
+                id: Date.now(),
                 nombre: nombre,
                 colorFondo: nuevoColorFondo,
                 colorNumero: nuevoColorNumero,
@@ -337,24 +278,21 @@
             window.datosSectores.push(nuevoSector);
             renderizarSectores();
             cerrarNuevoSectorModal();
-            window.guardarSectorHeader(nuevoSector);
+            window.subirAFirebase();
         }
 
-        function abrirRegistro(id, movId = null) {
+        function abrirRegistro(id, index = null) {
             sectorActivoId = id;
-            editandoMovId = movId;
-            const sector = window.datosSectores.find(s => String(s.id) === String(id));
+            editandoIndex = index;
+            const sector = window.datosSectores.find(s => s.id === id);
             if(!sector) return;
 
             document.getElementById('titulo-sector-modal').innerText = sector.nombre;
-            
-            if(movId) {
-                const mov = sector.historial.find(m => m.movId === movId);
-                if(mov) {
-                    document.getElementById('tipo-movimiento').value = mov.tipo;
-                    document.getElementById('monto-movimiento').value = formatNumber(mov.monto).replace('-', '');
-                    document.getElementById('desc-movimiento').value = mov.descripcion;
-                }
+            if(index !== null) {
+                const mov = sector.historial[index];
+                document.getElementById('tipo-movimiento').value = mov.tipo;
+                document.getElementById('monto-movimiento').value = formatNumber(mov.monto).replace('-', '');
+                document.getElementById('desc-movimiento').value = mov.descripcion;
             } else {
                 document.getElementById('monto-movimiento').value = "";
                 document.getElementById('desc-movimiento').value = "";
@@ -370,36 +308,31 @@
         async function guardarMovimiento() {
             const montoInput = document.getElementById('monto-movimiento').value;
             const monto = parseInt(montoInput.replace(/\./g, "")) || 0;
-            if(monto <= 0) return;
-
             const tipo = document.getElementById('tipo-movimiento').value;
             const desc = document.getElementById('desc-movimiento').value || "Sin descripción";
-            const sector = window.datosSectores.find(s => String(s.id) === String(sectorActivoId));
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
 
             const movData = { 
                 fecha: new Date().toLocaleDateString('es-PY'), 
-                timestamp: Date.now(),
                 descripcion: desc, 
                 monto: monto, 
                 tipo: tipo 
             };
 
-            cerrarModalMovimiento();
-
-            if (editandoMovId) {
-                const index = sector.historial.findIndex(m => m.movId === editandoMovId);
-                if(index !== -1) sector.historial[index] = { movId: editandoMovId, ...movData };
-                renderizarSectores();
-                window.actualizarMovimientoFirebase(sectorActivoId, editandoMovId, movData);
+            if (editandoIndex !== null) {
+                sector.historial[editandoIndex] = movData;
             } else {
+                if(!sector.historial) sector.historial = [];
                 sector.historial.unshift(movData);
-                renderizarSectores();
-                window.agregarMovimientoFirebase(sectorActivoId, movData);
             }
 
-            if(!document.getElementById('modal-extracto').classList.contains('hidden')) {
+            renderizarSectores();
+            cerrarModalMovimiento();
+            if(!document.getElementById('modal-extracto').classList.contains('hidden') && window.tipoExtractoActivo) {
                 abrirHistorialFiltrado(window.tipoExtractoActivo, false);
             }
+
+            window.subirAFirebase();
         }
 
         function prepararExtracto(id) {
@@ -413,7 +346,7 @@
             window.tipoExtractoActivo = tipo;
             if(!desdeSnapshot) cerrarSeleccionExtracto();
             
-            const sector = (window.datosSectores || []).find(s => String(s.id) === String(sectorActivoId));
+            const sector = (window.datosSectores || []).find(s => s.id === sectorActivoId);
             if(!sector) return;
             
             document.getElementById('titulo-extracto').innerText = `Extracto - ${sector.nombre}`;
@@ -422,7 +355,7 @@
             tbody.innerHTML = '';
             
             if(sector.historial && sector.historial.length > 0) {
-                sector.historial.forEach((mov) => {
+                sector.historial.forEach((mov, index) => {
                     const movEsEfectivo = mov.tipo.includes("Efectivo");
                     if ((tipo === "Efectivo" && movEsEfectivo) || (tipo === "Continental" && !movEsEfectivo)) {
                         const esEgreso = mov.tipo.includes("Egreso");
@@ -434,37 +367,36 @@
                                     ${esEgreso ? '-' : '+'} ${formatNumber(mov.monto).replace('-', '')}
                                 </td>
                                 <td class="p-4 text-center space-x-3">
-                                    <button onclick="abrirRegistro('${sectorActivoId}', '${mov.movId}')" class="text-blue-300 hover:text-blue-500"><i class="fas fa-edit"></i></button>
-                                    <button onclick="eliminarMovimiento('${sectorActivoId}', '${mov.movId}')" class="text-red-200 hover:text-red-400"><i class="fas fa-trash"></i></button>
+                                    <button onclick="abrirRegistro(${sectorActivoId}, ${index})" class="text-blue-300 hover:text-blue-500"><i class="fas fa-edit"></i></button>
+                                    <button onclick="eliminarMovimiento(${sectorActivoId}, ${index})" class="text-red-200 hover:text-red-400"><i class="fas fa-trash"></i></button>
                                 </td>
                             </tr>
                         `;
                     }
                 });
             } else {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-400 text-xs font-bold">No hay registros en este historial yet</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-gray-400 text-xs font-bold">No hay registros en este historial</td></tr>`;
             }
-
             document.getElementById('modal-extracto').classList.remove('hidden');
         }
 
-        function eliminarMovimiento(sectorId, movId) {
+        function eliminarMovimiento(sectorId, index) {
             mostrarConfirmacionElegante("¿Deseas eliminar este registro?", async () => {
-                const sector = window.datosSectores.find(s => String(s.id) === String(sectorId));
-                if(sector) {
-                    sector.historial = sector.historial.filter(m => m.movId !== movId);
+                const sector = window.datosSectores.find(s => s.id === sectorId);
+                if(sector && sector.historial) {
+                    sector.historial.splice(index, 1);
                     renderizarSectores();
                     abrirHistorialFiltrado(window.tipoExtractoActivo, false);
-                    window.eliminarMovimientoFirebase(sectorId, movId);
+                    window.subirAFirebase();
                 }
             });
         }
 
         function cerrarExtracto() { document.getElementById('modal-extracto').classList.add('hidden'); }
 
-        // EXPORTAR A EXCEL Y PDF
+        // EXPORTACIÓN A EXCEL Y PDF
         function obtenerDatosFiltrados() {
-            const sector = window.datosSectores.find(s => String(s.id) === String(sectorActivoId));
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             if (!sector || !sector.historial) return [];
             
             return sector.historial.filter(mov => {
@@ -475,7 +407,7 @@
         }
 
         function descargarExcel() {
-            const sector = window.datosSectores.find(s => String(s.id) === String(sectorActivoId));
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             const movimientos = obtenerDatosFiltrados();
             if(movimientos.length === 0) return;
 
@@ -499,7 +431,7 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             
-            const sector = window.datosSectores.find(s => String(s.id) === String(sectorActivoId));
+            const sector = window.datosSectores.find(s => s.id === sectorActivoId);
             const movimientos = obtenerDatosFiltrados();
             if(movimientos.length === 0) return;
 
